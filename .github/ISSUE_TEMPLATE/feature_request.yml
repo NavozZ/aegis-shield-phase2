@@ -1,0 +1,49 @@
+name: Feature request
+description: Propose a scoped improvement to AEGIS Shield
+title: "[Feature]: "
+labels:
+  - "type:feature"
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe the need and measurable outcome before proposing implementation details.
+  - type: textarea
+    id: feature
+    attributes:
+      label: Proposed feature
+      description: Explain the desired capability and its boundaries.
+    validations:
+      required: true
+  - type: textarea
+    id: value
+    attributes:
+      label: User value
+      description: Identify the user or operator and the problem this would solve.
+    validations:
+      required: true
+  - type: input
+    id: service
+    attributes:
+      label: Affected service
+      description: Name the likely service, application, shared package, or infrastructure area.
+      placeholder: customer-web, ledger-service, or unknown
+    validations:
+      required: true
+  - type: textarea
+    id: security
+    attributes:
+      label: Security considerations
+      description: Describe authentication, authorization, privacy, financial-integrity, abuse, audit, or recovery implications.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: List observable conditions that would make this feature complete.
+      placeholder: |
+        - [ ] Given ..., when ..., then ...
+        - [ ] Security and failure behavior is tested
+    validations:
+      required: true

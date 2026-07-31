@@ -1,0 +1,81 @@
+# Node.js and package-manager caches
+node_modules/
+.npm/
+.pnpm-store/
+.yarn/cache/
+.yarn/unplugged/
+*.tsbuildinfo
+
+# Next.js and NestJS
+.next/
+.swc/
+.nest/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Go
+*.test
+*.out
+vendor/
+
+# Docker local overrides
+compose.override.yml
+compose.override.yaml
+docker-compose.override.yml
+docker-compose.override.yaml
+
+# Editors and IDEs
+.vscode/
+.idea/
+*.iml
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Operating-system files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Test coverage and reports
+coverage/
+.coverage
+htmlcov/
+test-results/
+playwright-report/
+
+# Build artifacts
+dist/
+build/
+out/
+bin/
+obj/
+tmp/
+temp/
+*.log
+
+# Local certificates and keys
+*.crt
+*.cer
+*.p12
+*.pfx
+*.pem
+*.key
+certs/local/
+
+# Secrets and local environment files
+.env
+.env.*
+!.env.example
+*.secret
+*.secrets
+secrets/
