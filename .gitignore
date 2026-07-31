@@ -5,6 +5,7 @@ node_modules/
 .yarn/cache/
 .yarn/unplugged/
 *.tsbuildinfo
+services/identity/src/generated/
 
 # Next.js and NestJS
 .next/

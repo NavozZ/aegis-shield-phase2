@@ -1,6 +1,6 @@
 # AEGIS Shield Phase 2 User Guide
 
-This guide explains how to run the Prompt 02 foundation and local infrastructure. The current platform exposes a customer-facing foundation page, an API health endpoint, PostgreSQL, and Redis; applications do not connect to the data services and the platform does not perform banking operations.
+This guide explains how to run the Prompt 03 foundation, infrastructure, and authentication backend. The platform does not perform banking operations. Customer-facing onboarding and sign-in screens are implemented in Prompt 04; use backend tests for this milestone.
 
 ## Introduction
 
@@ -9,10 +9,10 @@ AEGIS Shield is a Duothan 6.0 hackathon prototype for resilient and inclusive ze
 ## System requirements
 
 - Git
-- Node.js `>=20.9`; Node.js 22 is selected by `.nvmrc`
+- Node.js `>=22.12`; Node.js 22 is selected by `.nvmrc`
 - pnpm `11.8.0`
 - Docker Desktop or Docker Engine with Docker Compose v2
-- Available local TCP ports 3000, 4000, 5432, and 6379
+- Available local TCP ports 3000, 4000, 4101, 5432, and 6379
 
 Confirm the toolchain:
 
@@ -68,7 +68,7 @@ pnpm infra:check
 pnpm dev:full
 ```
 
-This leaves Docker infrastructure running when `Ctrl+C` stops the web and API processes. Normal `pnpm dev` remains available when Docker is not needed.
+This verifies infrastructure, deploys committed Identity migrations, and then starts all workspaces. It leaves Docker infrastructure running when `Ctrl+C` stops applications. Normal `pnpm dev` never alters databases.
 
 7. View all infrastructure logs or one service:
 
@@ -130,11 +130,32 @@ The response contains `status: ok`, service name, version, a dynamic ISO-8601 ti
 
 ## Demo user credentials
 
-No users or credentials exist in Prompt 01. Authentication will be implemented in a later milestone using synthetic demonstration identities only.
+No production or seeded users are committed. Demo OTP is local/test-only and appears only when `DEMO_AUTH_ENABLED=true`; production startup rejects that mode. Always use synthetic example-style phone data.
+
+## Testing the authentication backend
+
+Start infrastructure and apply the committed migration:
+
+```powershell
+pnpm infra:up
+pnpm infra:check
+pnpm db:validate:identity
+pnpm db:generate
+pnpm db:deploy:identity
+```
+
+Run deterministic and real-infrastructure authentication tests:
+
+```powershell
+pnpm auth:test
+pnpm auth:test:e2e
+```
+
+The e2e suite starts Identity as a separate loopback service, calls onboarding and sign-in only through the API Gateway, verifies cookie/CSRF/logout/lockout/passkey-option behavior, and performs scoped cleanup. A physical browser passkey ceremony is not claimed here.
 
 ## Customer journeys
 
-The web foundation page is the only customer view. Login, dashboard, transfers, QR payments, USSD, and agent-assisted journeys are intentionally deferred.
+The web foundation page is still the only customer view. Prompt 04 will connect accessible onboarding and sign-in screens to these APIs. Dashboard, transfers, QR payments, USSD, and agent-assisted journeys remain deferred.
 
 ## Administrator journey
 

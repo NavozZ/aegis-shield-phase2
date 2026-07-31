@@ -65,6 +65,12 @@ jobs:
       PAYMENTS_DB_PASSWORD: ci-only-payments-password
       AUDIT_DB_PASSWORD: ci-only-audit-password
       REDIS_PASSWORD: ci-only-redis-password
+      IDENTITY_DATABASE_URL: postgresql://aegis_identity:ci-only-identity-password@127.0.0.1:5432/aegis_identity?schema=app
+      REDIS_URL: redis://:ci-only-redis-password@127.0.0.1:6379/0
+      IDENTITY_INTERNAL_TOKEN: ci-only-identity-internal-token
+      IDENTITY_REDIS_PREFIX: 'aegis:identity:test:ci:'
+      DEMO_AUTH_ENABLED: true
+      FIELD_ENCRYPTION_KEY: CI_ONLY_NOT_PRODUCTION_KEY
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -77,14 +83,26 @@ jobs:
           cache: pnpm
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      - name: Test
-        run: pnpm test
       - name: Validate infrastructure configuration
         run: pnpm infra:validate
       - name: Start infrastructure
         run: pnpm infra:up
       - name: Check infrastructure
         run: pnpm infra:check
+      - name: Generate Identity Prisma Client
+        run: pnpm db:generate
+      - name: Apply committed Identity migrations
+        run: pnpm db:deploy:identity
+      - name: Test infrastructure tooling
+        run: node --test infra/scripts/infra.test.mjs
+      - name: Test shared contracts
+        run: pnpm --filter @aegis/contracts test
+      - name: Test Identity service
+        run: pnpm --filter @aegis/identity-service test
+      - name: Test API Gateway
+        run: pnpm --filter @aegis/api-gateway test
+      - name: Test authentication end to end
+        run: pnpm auth:test:e2e
       - name: Stop infrastructure
         if: always()
         continue-on-error: true
@@ -106,5 +124,7 @@ jobs:
           cache: pnpm
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      - name: Generate Identity Prisma Client
+        run: pnpm db:generate
       - name: Build
         run: pnpm build

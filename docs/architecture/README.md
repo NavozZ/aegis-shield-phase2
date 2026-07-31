@@ -1,13 +1,13 @@
 # Architecture Documentation
 
-This document describes the currently implemented Prompt 02 boundaries and reserves the flows that later milestones must define. Architecture changes must preserve explicit trust boundaries, data ownership, and bounded failure behavior.
+This document describes the currently implemented Prompt 03 boundaries and reserves the flows that later milestones must define. Architecture changes must preserve explicit trust boundaries, data ownership, and bounded failure behavior.
 
 ## Current monorepo boundaries
 
 ```text
 apps/       Independently runnable user-facing and gateway applications
-services/   Reserved independently deployable banking and security services
-packages/   Reserved shared contracts, configuration, security, UI, and test utilities
+services/   Independently deployable services; Identity is implemented
+packages/   Shared versioned contracts; authentication v1 is implemented
 infra/      Local data orchestration and checks; future deployment and recovery assets
 docs/       Architecture, decisions, and demonstration procedures
 ```
@@ -20,13 +20,16 @@ pnpm provides one workspace and root lockfile. Turborepo coordinates tasks witho
 
 ## API gateway responsibility
 
-`apps/api-gateway` is the NestJS HTTP entry point. It currently exposes only `GET /health`, validates its listening port, accepts the local web origin through CORS, applies a secure global validation pipe, and enables graceful shutdown hooks.
+`apps/api-gateway` is the public NestJS HTTP entry point. It preserves `GET /health`, adds dependency readiness and allowlisted `/api/v1/auth/*` routes, validates shared contracts, applies bounded request handling, and owns browser cookie and double-submit CSRF enforcement.
 
-Later milestones may add authentication enforcement and request routing. The gateway must not become the owner of banking data or domain logic.
+The Gateway does not own credentials, user records, sessions, or banking state and is not a generic proxy.
+
+## Identity responsibility
+
+`services/identity` is loopback-bound with no browser CORS. An internal token protects every route except liveness. Identity owns Tier-0 onboarding, hashed OTP challenges, Argon2id PIN verification, passkey public credentials/counters, revocable opaque sessions, and safe authentication events. PostgreSQL holds durable identity records; Redis holds expiring challenge and session state.
 
 ## Future independent service boundaries
 
-- identity
 - accounts-ledger
 - payments
 - threat-detection
@@ -42,22 +45,22 @@ Each stateful service will own its data store and publish explicit contracts. Sh
 Browser
   → Next.js web application
   → NestJS API gateway
-  → future independent services
-  → service-owned PostgreSQL databases
+  → allowlisted Identity API (internal token)
+  → Identity-owned PostgreSQL app schema
+  → Identity Redis namespace
 ```
 
-Only the browser-to-web foundation page, direct API health request, and standalone local infrastructure are implemented. Application-to-gateway business requests, gateway-to-service calls, and all application database connections are deferred to later prompts.
+The authentication backend and Gateway-to-Identity calls are implemented. The customer-facing authentication UI, banking business requests, and all other service connections are deferred.
 
 ## Local data and messaging boundaries
 
-PostgreSQL provides four logically isolated prototype databases. Redis is provisioned as the future store for:
+PostgreSQL provides four logically isolated prototype databases. Identity now uses its service database, while Redis stores bounded authentication state for:
 
 - sessions
-- idempotency records
-- cache
-- lightweight event streams
+- OTP and passkey challenges
+- resend, request, and login limits
 
-No application connects to PostgreSQL or Redis yet. Queues beyond Redis streams, production service messaging, deployment manifests, workload identity, and observability backends remain deferred. No implementation should infer that a placeholder flow has persistence or delivery guarantees.
+Queues, general caching/idempotency, production service messaging, deployment manifests, workload identity, and observability backends remain deferred. Identity is the only application with a data connection in this milestone.
 
 ## Future diagrams and flows
 
@@ -65,7 +68,7 @@ The following remain to be completed as their implementations are introduced:
 
 - context and container diagrams
 - service responsibilities and data ownership
-- customer and workload authentication flow
+- production workload-authentication flow
 - idempotent transfer and double-entry posting flow
 - SABCL-protected communication flow
 - failure isolation, reconciliation, and recovery flow

@@ -6,11 +6,11 @@ import { resolveApiPort } from './config/api-port';
 import { APPLICATION_NAME } from './constants/application.constants';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, { bodyParser: false });
   configureApplication(app);
 
   const port = resolveApiPort();
-  await app.listen(port);
+  await app.listen(port, '127.0.0.1');
 
   Logger.log(`Listening on http://localhost:${port}`, APPLICATION_NAME);
 }
