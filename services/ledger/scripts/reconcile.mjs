@@ -73,10 +73,27 @@ try {
   );
   if (result.status !== 'PASS') exitCode = 1;
 } catch (error) {
+  // Operator diagnostics only: the error class plus Prisma's bounded error code
+  // (for example P2010 or P2021). Database messages can quote row values, so
+  // they are never printed.
+  const errorName =
+    error instanceof Error ? error.constructor.name : 'UnknownError';
+  const errorCode =
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    typeof error.code === 'string' &&
+    /^[A-Za-z0-9_-]{1,32}$/u.test(error.code)
+      ? error.code
+      : 'unknown';
+  // Prisma's meta carries the database's own diagnostic. It is printed only to
+  // the operator console, bounded in length, and never returned over HTTP.
+  const meta =
+    typeof error === 'object' && error !== null && 'meta' in error
+      ? JSON.stringify(error.meta).slice(0, 500)
+      : '';
   process.stderr.write(
-    `Ledger reconciliation could not complete: ${
-      error instanceof Error ? error.constructor.name : 'UnknownError'
-    }\n`,
+    `Ledger reconciliation could not complete: ${errorName} (${errorCode}) ${meta}\n`,
   );
   exitCode = 1;
 } finally {
