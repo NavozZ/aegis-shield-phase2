@@ -8,13 +8,26 @@ export class HealthController {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * Liveness is public so process supervisors and the browser test harness can
-   * wait for the port to bind. It reports no dependency detail.
+   * Liveness is public so process supervisors and test harnesses can wait for
+   * the port to bind. It reports no dependency detail.
+   *
+   * `/health` and `/health/live` are declared as separate handlers on purpose:
+   * stacking two `@Get` decorators on one method registers only the outermost
+   * path, silently leaving the other route unrouted.
    */
   @Get()
+  @PublicRoute()
+  health() {
+    return this.liveness();
+  }
+
   @Get('live')
   @PublicRoute()
   live() {
+    return this.liveness();
+  }
+
+  private liveness() {
     return { status: 'ok', service: 'ledger' } as const;
   }
 
