@@ -124,6 +124,11 @@ jobs:
         run: pnpm web:test:e2e
       - name: Test browser accessibility
         run: pnpm web:test:a11y
+      # The browser harness stops infrastructure as part of its own cleanup, so
+      # reconciliation restarts it. Named volumes persist, so the ledger written
+      # by the earlier steps is still there to be checked.
+      - name: Restart infrastructure for reconciliation
+        run: pnpm infra:up && pnpm infra:check
       - name: Reconcile the ledger
         run: pnpm --filter @aegis/ledger-service build && pnpm ledger:reconcile
       - name: Upload Playwright report on failure
