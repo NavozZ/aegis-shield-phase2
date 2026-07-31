@@ -90,9 +90,11 @@ export class AccountsController {
     @Headers('x-csrf-token') csrfHeader?: string,
     @Headers('idempotency-key') idempotencyKey?: string,
   ): Promise<CustomerAccountDetail> {
-    if (!provisionDefaultAccountRequestSchema.safeParse(body ?? {}).success) {
-      throw invalidRequest('INVALID_REQUEST', 'The request is invalid.');
-    }
+    // Precedence is deliberate: who is calling (401), is the call forgeable
+    // (403), is it replay-safe (400), is it well-formed (400). An
+    // unauthenticated caller must never be told 403 for a missing CSRF token
+    // it could not have had.
+    const customerId = await this.sessions.resolve(request);
     requireCsrfToken(
       request.header('cookie'),
       this.config.csrfCookieName,
@@ -105,7 +107,9 @@ export class AccountsController {
         'A valid Idempotency-Key header is required.',
       );
     }
-    const customerId = await this.sessions.resolve(request);
+    if (!provisionDefaultAccountRequestSchema.safeParse(body ?? {}).success) {
+      throw invalidRequest('INVALID_REQUEST', 'The request is invalid.');
+    }
 
     const result = await this.ledger.request(
       LEDGER_ENDPOINTS.provisionDefaultAccount,

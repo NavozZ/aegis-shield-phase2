@@ -110,6 +110,25 @@ describe('AccountsController authentication', () => {
     expect(ledgerRequest).not.toHaveBeenCalled();
   });
 
+  it('answers 401, not 403, when provisioning without a session', async () => {
+    const resolveCustomer = jest.fn(() =>
+      Promise.reject(
+        new HttpException(
+          { error: { code: 'UNAUTHENTICATED' } },
+          HttpStatus.UNAUTHORIZED,
+        ),
+      ),
+    );
+    const { controller, ledgerRequest } = buildController({ resolveCustomer });
+
+    // No cookies, so the CSRF token is absent too. An unauthenticated caller
+    // must not be told 403 for a token it could never have supplied.
+    await expect(
+      controller.provisionDefault({}, requestWith(), undefined, undefined),
+    ).rejects.toMatchObject({ status: 401 });
+    expect(ledgerRequest).not.toHaveBeenCalled();
+  });
+
   it('uses the customer identifier from the session', async () => {
     const { controller, ledgerRequest } = buildController();
 
