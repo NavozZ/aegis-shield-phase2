@@ -5,7 +5,7 @@
   "description": "AEGIS Shield — a zero-trust, resilient, and inclusive digital banking platform with SABCL metadata protection.",
   "packageManager": "pnpm@11.8.0",
   "engines": {
-    "node": ">=20.9"
+    "node": ">=22.12"
   },
   "workspaces": [
     "apps/*",
@@ -28,7 +28,13 @@
     "infra:check": "node infra/scripts/infra.mjs check",
     "infra:validate": "node infra/scripts/infra.mjs validate",
     "infra:reset": "node infra/scripts/infra.mjs reset",
-    "dev:full": "node infra/scripts/infra.mjs up && pnpm dev"
+    "dev:full": "node infra/scripts/infra.mjs up && node infra/scripts/infra.mjs check && pnpm db:deploy:identity && pnpm dev",
+    "db:generate": "pnpm --filter @aegis/identity-service prisma:generate",
+    "db:migrate:identity": "pnpm --filter @aegis/identity-service prisma:migrate:dev",
+    "db:deploy:identity": "pnpm --filter @aegis/identity-service prisma:migrate:deploy",
+    "db:validate:identity": "pnpm --filter @aegis/identity-service prisma:validate",
+    "auth:test": "pnpm --filter @aegis/contracts test && pnpm --filter @aegis/identity-service test && pnpm --filter @aegis/api-gateway test",
+    "auth:test:e2e": "pnpm --filter @aegis/identity-service test:e2e && pnpm --filter @aegis/api-gateway test:e2e"
   },
   "devDependencies": {
     "prettier": "3.9.6",

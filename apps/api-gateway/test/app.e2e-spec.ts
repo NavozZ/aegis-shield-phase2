@@ -26,14 +26,16 @@ function isHealthResponse(value: unknown): value is HealthResponse {
 describe('Health endpoint (e2e)', () => {
   let app: INestApplication<App>;
   const originalNodeEnvironment = process.env.NODE_ENV;
+  const originalInternalToken = process.env.IDENTITY_INTERNAL_TOKEN;
 
   beforeAll(async () => {
     process.env.NODE_ENV = 'development';
+    process.env.IDENTITY_INTERNAL_TOKEN = 'test-only-health-internal-token';
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
 
-    app = moduleFixture.createNestApplication();
+    app = moduleFixture.createNestApplication({ bodyParser: false });
     configureApplication(app);
     await app.init();
   });
@@ -64,6 +66,11 @@ describe('Health endpoint (e2e)', () => {
       delete process.env.NODE_ENV;
     } else {
       process.env.NODE_ENV = originalNodeEnvironment;
+    }
+    if (originalInternalToken === undefined) {
+      delete process.env.IDENTITY_INTERNAL_TOKEN;
+    } else {
+      process.env.IDENTITY_INTERNAL_TOKEN = originalInternalToken;
     }
   });
 });

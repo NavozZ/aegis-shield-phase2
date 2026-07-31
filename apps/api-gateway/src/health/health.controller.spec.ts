@@ -1,7 +1,8 @@
 import { HealthController } from './health.controller';
 
 describe('HealthController', () => {
-  const controller = new HealthController();
+  const identity = { ready: jest.fn().mockResolvedValue(true) };
+  const controller = new HealthController(identity as never);
   const originalNodeEnvironment = process.env.NODE_ENV;
 
   afterEach(() => {
@@ -28,5 +29,16 @@ describe('HealthController', () => {
     process.env.NODE_ENV = '';
 
     expect(controller.getHealth().environment).toBe('development');
+  });
+
+  it('reports readiness only when Identity is ready', async () => {
+    await expect(controller.getReadiness()).resolves.toEqual({
+      status: 'ready',
+      dependencies: { identity: 'up' },
+    });
+    identity.ready.mockResolvedValueOnce(false);
+    await expect(controller.getReadiness()).rejects.toMatchObject({
+      status: 503,
+    });
   });
 });

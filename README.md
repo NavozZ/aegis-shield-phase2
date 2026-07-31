@@ -2,7 +2,7 @@
 
 AEGIS Shield is a zero-trust, resilient, and inclusive digital banking platform with SABCL metadata protection. This monorepo is the official Duothan 6.0 Phase 2 workspace for demonstrating secure banking journeys under normal operation, active threats, and service failure.
 
-> **Current status:** Prompt 02 local infrastructure. The customer web shell, API gateway health endpoint, PostgreSQL/Redis development infrastructure, shared tooling, and continuous integration are implemented. Banking capabilities and application data connections are not implemented yet.
+> **Current status:** Prompt 03 secure authentication backend. The customer web shell, API Gateway, independent Identity service, PostgreSQL/Redis authentication state, shared contracts, and CI validation are implemented. The customer-facing authentication UI is deferred to Prompt 04.
 
 ## Core problem
 
@@ -27,9 +27,15 @@ SABCL (Security-Aware Blind Communication Layer) is the project's signature meta
 - Reproducible Docker Compose services for PostgreSQL and authenticated Redis
 - Four service-owned prototype databases with least-privilege roles
 - Cross-platform infrastructure lifecycle, health, ownership, and validation commands
+- Independent NestJS Identity service and Prisma migration
+- Redis-backed hashed OTP challenges and opaque revocable sessions
+- Tier-0 phone onboarding and Argon2id PIN plus OTP fallback
+- WebAuthn/passkey backend boundaries
+- Gateway allowlisting, HttpOnly session cookies, and CSRF protection
+- Authentication unit, integration, and real-infrastructure e2e tests
 - Reserved boundaries for future services, shared packages, and infrastructure
 
-Authentication, application data models and clients, accounts, ledgers, payments, SABCL, threat detection, service quarantine, production messaging, and disaster recovery are intentionally deferred.
+The final authentication UI, accounts, ledgers, payments, SABCL, threat detection, service quarantine, production messaging, and disaster recovery are intentionally deferred.
 
 ## Monorepo structure
 
@@ -47,8 +53,8 @@ Authentication, application data models and clients, accounts, ledgers, payments
 |   `-- demo/                 # Phase 2 demonstration plans
 |-- infra/                    # Local data infrastructure, checks, and documentation
 |-- docker-compose.yml        # Loopback-only PostgreSQL and Redis services
-|-- packages/                 # Reserved shared-package workspace
-|-- services/                 # Reserved independent-service workspace
+|-- packages/contracts/       # Versioned shared runtime auth schemas
+|-- services/identity/        # Private customer identity service
 |-- package.json              # Root scripts and tool versions
 |-- pnpm-lock.yaml            # Single dependency lockfile
 |-- pnpm-workspace.yaml       # Workspace and build-policy configuration
@@ -58,7 +64,7 @@ Authentication, application data models and clients, accounts, ledgers, payments
 ## Prerequisites
 
 - Git
-- Node.js `>=20.9` (the project currently uses Node.js 22 via `.nvmrc`)
+- Node.js `>=22.12` (the project currently uses Node.js 22 via `.nvmrc`)
 - pnpm `11.8.0`, as pinned by `packageManager` in `package.json`
 - Docker Desktop or Docker Engine with Docker Compose v2 (for infrastructure only)
 
@@ -121,6 +127,8 @@ pnpm dev
 - Web application: `http://localhost:3000`
 - API gateway: `http://localhost:4000`
 - API health: `http://localhost:4000/health`
+- Gateway readiness: `http://localhost:4000/health/ready`
+- Identity service: `http://127.0.0.1:4101` (internal only)
 
 Start a single application:
 
@@ -145,20 +153,24 @@ Run API-specific checks with:
 ```powershell
 pnpm --filter @aegis/api-gateway test
 pnpm --filter @aegis/api-gateway test:e2e
+pnpm --filter @aegis/identity-service test
+pnpm --filter @aegis/identity-service test:e2e
+pnpm auth:test
+pnpm auth:test:e2e
 ```
 
 Generated framework and Turborepo output can be removed safely with `pnpm clean`.
 
 ## Architecture
 
-The browser renders the customer-facing Next.js application. The web application will call the NestJS API gateway, which will later authenticate and route requests to independently deployable services. Local PostgreSQL and Redis are available, but no application database client, cache client, or service messaging connection exists in this milestone.
+The browser calls the NestJS API Gateway. The Gateway owns the public HTTP/cookie boundary and forwards only allowlisted authentication operations to the private Identity service. Identity owns the `aegis_identity` PostgreSQL schema and its namespaced Redis authentication state. Raw opaque sessions never enter response bodies.
 
-See [Architecture Documentation](docs/architecture/README.md), [ADR 0002](docs/decisions/0002-monorepo-tooling.md), and [ADR 0003](docs/decisions/0003-local-data-infrastructure.md) for the current boundaries and decisions.
+See [Architecture Documentation](docs/architecture/README.md), [Identity README](services/identity/README.md), [ADR 0004](docs/decisions/0004-identity-and-session-authentication.md), and the [authentication threat model](docs/security/authentication-threat-model.md).
 
 ## Next milestones
 
-- shared contracts and configuration foundations
-- customer and workload identity
+- customer authentication UI and accessible browser ceremonies
+- production workload identity and OTP delivery
 - accounts and double-entry ledger
 - idempotent payments and inclusive access channels
 - SABCL metadata-protection path

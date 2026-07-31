@@ -1,0 +1,94 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum PreferredLanguage {
+  EN
+  SI
+  TA
+}
+
+enum UserStatus {
+  PENDING
+  ACTIVE
+  LOCKED
+  DISABLED
+}
+
+model User {
+  id                  String             @id @default(uuid()) @db.Uuid
+  phoneE164           String             @unique @map("phone_e164") @db.VarChar(16)
+  preferredLanguage   PreferredLanguage  @default(EN) @map("preferred_language")
+  kycTier             Int                @default(0) @map("kyc_tier")
+  status              UserStatus         @default(PENDING)
+  consentAcceptedAt   DateTime           @map("consent_accepted_at") @db.Timestamptz(3)
+  phoneVerifiedAt     DateTime?          @map("phone_verified_at") @db.Timestamptz(3)
+  createdAt           DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt           DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
+  lastAuthenticatedAt DateTime?          @map("last_authenticated_at") @db.Timestamptz(3)
+  failedLoginCount    Int                @default(0) @map("failed_login_count")
+  lockedUntil         DateTime?          @map("locked_until") @db.Timestamptz(3)
+  pinCredential       PinCredential?
+  passkeyCredentials  PasskeyCredential[]
+  authEvents          AuthEvent[]
+
+  @@index([status, lockedUntil])
+  @@map("users")
+}
+
+model PinCredential {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @unique @map("user_id") @db.Uuid
+  pinHash   String    @map("pin_hash") @db.Text
+  algorithm String    @db.VarChar(128)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  rotatedAt DateTime? @map("rotated_at") @db.Timestamptz(3)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("pin_credentials")
+}
+
+model PasskeyCredential {
+  id           String    @id @default(uuid()) @db.Uuid
+  userId       String    @map("user_id") @db.Uuid
+  credentialId String    @unique @map("credential_id") @db.Text
+  publicKey    Bytes     @map("public_key")
+  counter      BigInt    @default(0)
+  transports   String[]
+  deviceType   String    @map("device_type") @db.VarChar(32)
+  backedUp     Boolean   @default(false) @map("backed_up")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  lastUsedAt   DateTime? @map("last_used_at") @db.Timestamptz(3)
+  nickname     String?   @db.VarChar(64)
+  revokedAt    DateTime? @map("revoked_at") @db.Timestamptz(3)
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
+  @@map("passkey_credentials")
+}
+
+model AuthEvent {
+  id            String   @id @default(uuid()) @db.Uuid
+  userId        String?  @map("user_id") @db.Uuid
+  eventType     String   @map("event_type") @db.VarChar(64)
+  outcome       String   @db.VarChar(32)
+  correlationId String   @map("correlation_id") @db.Uuid
+  maskedActor   String   @map("masked_actor") @db.VarChar(64)
+  ipHash        String?  @map("ip_hash") @db.Char(64)
+  userAgentHash String?  @map("user_agent_hash") @db.Char(64)
+  metadata      Json     @default("{}")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  user          User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([eventType, createdAt])
+  @@index([correlationId])
+  @@map("auth_events")
+}
