@@ -1,0 +1,71 @@
+name: Bug report
+description: Report a reproducible defect in AEGIS Shield
+title: "[Bug]: "
+labels:
+  - "type:bug"
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting a defect. Remove secrets, credentials, financial data, and personal data before submitting.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem description
+      description: Describe the observed problem and its impact.
+      placeholder: What happened, and who or what is affected?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: Provide the smallest repeatable sequence.
+      placeholder: |
+        1. Start ...
+        2. Submit ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: Explain what should have happened instead.
+    validations:
+      required: true
+  - type: input
+    id: service
+    attributes:
+      label: Affected service
+      description: Name the service, application, shared package, or infrastructure component.
+      placeholder: payments-service
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Include revision, operating system, runtime, browser, deployment mode, and relevant safe configuration.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs with secrets removed
+      description: Paste only sanitized logs or traces. Remove tokens, credentials, personal data, account details, and keys.
+      render: shell
+    validations:
+      required: false
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      description: Choose the highest demonstrated impact. Report exploitable security vulnerabilities privately instead.
+      options:
+        - Critical — blocks the platform or risks financial/security integrity
+        - High — major capability unavailable with no practical workaround
+        - Medium — degraded behavior with a workaround
+        - Low — minor or cosmetic impact
+    validations:
+      required: true
