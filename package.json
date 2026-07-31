@@ -17,10 +17,18 @@
     "build": "turbo run build",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
-    "test": "turbo run test",
+    "test": "node --test infra/scripts/infra.test.mjs && turbo run test",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "clean": "turbo run clean && rimraf .turbo"
+    "clean": "turbo run clean && rimraf .turbo",
+    "infra:up": "node infra/scripts/infra.mjs up",
+    "infra:down": "node infra/scripts/infra.mjs down",
+    "infra:status": "node infra/scripts/infra.mjs status",
+    "infra:logs": "node infra/scripts/infra.mjs logs",
+    "infra:check": "node infra/scripts/infra.mjs check",
+    "infra:validate": "node infra/scripts/infra.mjs validate",
+    "infra:reset": "node infra/scripts/infra.mjs reset",
+    "dev:full": "node infra/scripts/infra.mjs up && pnpm dev"
   },
   "devDependencies": {
     "prettier": "3.9.6",

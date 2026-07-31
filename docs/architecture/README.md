@@ -1,6 +1,6 @@
 # Architecture Documentation
 
-This document describes the currently implemented Prompt 01 boundaries and reserves the flows that later milestones must define. Architecture changes must preserve explicit trust boundaries, data ownership, and bounded failure behavior.
+This document describes the currently implemented Prompt 02 boundaries and reserves the flows that later milestones must define. Architecture changes must preserve explicit trust boundaries, data ownership, and bounded failure behavior.
 
 ## Current monorepo boundaries
 
@@ -8,7 +8,7 @@ This document describes the currently implemented Prompt 01 boundaries and reser
 apps/       Independently runnable user-facing and gateway applications
 services/   Reserved independently deployable banking and security services
 packages/   Reserved shared contracts, configuration, security, UI, and test utilities
-infra/      Reserved local orchestration, observability, deployment, and recovery assets
+infra/      Local data orchestration and checks; future deployment and recovery assets
 docs/       Architecture, decisions, and demonstration procedures
 ```
 
@@ -34,19 +34,30 @@ Later milestones may add authentication enforcement and request routing. The gat
 - notifications
 - recovery
 
-Each stateful service will own its data store and publish explicit contracts. Shared packages may contain schemas and utilities, but never direct cross-service database access.
+Each stateful service will own its data store and publish explicit contracts. Shared packages may contain schemas and utilities, but never direct cross-service database access. Prompt 02 models that ownership with separate identity, ledger, payments, and audit databases and login roles inside one local PostgreSQL container.
 
-## Current request-flow placeholder
+## Current and future data flow
 
 ```text
-browser → web → API gateway → future services
+Browser
+  → Next.js web application
+  → NestJS API gateway
+  → future independent services
+  → service-owned PostgreSQL databases
 ```
 
-Only the browser-to-web foundation page and direct API health request are implemented. Application-to-gateway business requests and all gateway-to-service calls are placeholders.
+Only the browser-to-web foundation page, direct API health request, and standalone local infrastructure are implemented. Application-to-gateway business requests, gateway-to-service calls, and all application database connections are deferred to later prompts.
 
-## Deferred infrastructure
+## Local data and messaging boundaries
 
-Databases, Redis, queues, service messaging, containers, deployment manifests, workload identity, and observability backends are intentionally deferred. No implementation should infer that a placeholder flow has persistence or delivery guarantees.
+PostgreSQL provides four logically isolated prototype databases. Redis is provisioned as the future store for:
+
+- sessions
+- idempotency records
+- cache
+- lightweight event streams
+
+No application connects to PostgreSQL or Redis yet. Queues beyond Redis streams, production service messaging, deployment manifests, workload identity, and observability backends remain deferred. No implementation should infer that a placeholder flow has persistence or delivery guarantees.
 
 ## Future diagrams and flows
 

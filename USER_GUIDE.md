@@ -1,6 +1,6 @@
 # AEGIS Shield Phase 2 User Guide
 
-This guide explains how to run the Prompt 01 foundation locally. The current platform exposes a customer-facing foundation page and an API health endpoint only; it does not perform banking operations.
+This guide explains how to run the Prompt 02 foundation and local infrastructure. The current platform exposes a customer-facing foundation page, an API health endpoint, PostgreSQL, and Redis; applications do not connect to the data services and the platform does not perform banking operations.
 
 ## Introduction
 
@@ -11,13 +11,17 @@ AEGIS Shield is a Duothan 6.0 hackathon prototype for resilient and inclusive ze
 - Git
 - Node.js `>=20.9`; Node.js 22 is selected by `.nvmrc`
 - pnpm `11.8.0`
-- Available local TCP ports 3000 and 4000
+- Docker Desktop or Docker Engine with Docker Compose v2
+- Available local TCP ports 3000, 4000, 5432, and 6379
 
 Confirm the toolchain:
 
 ```powershell
 node --version
 pnpm --version
+docker --version
+docker compose version
+docker info
 ```
 
 ## Installation
@@ -32,19 +36,65 @@ pnpm install
 
 Do not run `npm install` or Yarn in this repository. The monorepo uses one root `pnpm-lock.yaml`.
 
-## Environment setup
+## Environment and infrastructure setup
 
-The foundation applications use safe local defaults. If a local override file is needed, copy the documented template:
+1. Copy the documented template to an ignored local file:
 
 ```powershell
 Copy-Item .env.example .env
 ```
 
-The resulting `.env` is ignored. Keep every real credential out of Git. For this milestone, `API_PORT` can also be set in the terminal before starting the API. The default is 4000.
+2. Change every value ending in `_PASSWORD` in `.env`. Update the matching `*_DATABASE_URL` and `REDIS_URL` values when changing credentials or ports. These are local-only development credentials; never reuse a real password.
+
+3. Start Docker Desktop and wait until its Linux container engine reports that it is running. The resulting `.env` remains ignored and must never be committed.
+
+4. Validate and start infrastructure:
+
+```powershell
+pnpm infra:validate
+pnpm infra:up
+```
+
+5. Check PostgreSQL readiness, authenticated Redis access, databases, roles, ownership, and container health:
+
+```powershell
+pnpm infra:status
+pnpm infra:check
+```
+
+6. Start the full environment:
+
+```powershell
+pnpm dev:full
+```
+
+This leaves Docker infrastructure running when `Ctrl+C` stops the web and API processes. Normal `pnpm dev` remains available when Docker is not needed.
+
+7. View all infrastructure logs or one service:
+
+```powershell
+pnpm infra:logs
+pnpm infra:logs -- postgres
+pnpm infra:logs -- redis
+```
+
+8. Stop containers while preserving local data:
+
+```powershell
+pnpm infra:down
+```
+
+9. When existing local data is disposable and initialization must run again, use the explicitly confirmed destructive reset:
+
+```powershell
+pnpm infra:reset -- --yes
+```
+
+PostgreSQL initialization scripts run only when the named volume is first created. Changing `.env` database credentials does not alter an existing volume.
 
 ## Starting the platform
 
-Start the web application and API gateway together:
+Start the web application and API gateway together without requiring Docker:
 
 ```powershell
 pnpm dev
@@ -115,7 +165,7 @@ corepack prepare pnpm@11.8.0 --activate
 
 ### A port is already in use
 
-Stop the process using port 3000 or 4000. For a temporary API-only override:
+Identify the process using port 3000, 4000, 5432, or 6379; do not terminate an unknown process. For a temporary API-only override:
 
 ```powershell
 $env:API_PORT = '4100'
@@ -123,6 +173,21 @@ pnpm --filter @aegis/api-gateway dev
 ```
 
 Values outside 1–65535 cause the API to fail safely with a configuration error.
+
+PostgreSQL and Redis host ports can be changed through `POSTGRES_PORT` and `REDIS_PORT` in `.env`. Keep Compose bindings on `127.0.0.1` and update matching URLs.
+
+### Docker infrastructure is unavailable or unhealthy
+
+Start Docker Desktop and wait for the Linux container engine, then run:
+
+```powershell
+docker info
+pnpm infra:status
+pnpm infra:logs -- postgres
+pnpm infra:logs -- redis
+```
+
+If initialization failed and the data is disposable, correct the configuration before using the confirmed reset command.
 
 ### Dependencies or generated output are stale
 
@@ -139,4 +204,4 @@ Confirm the API process is running, verify its startup port in the terminal, and
 
 ## Stopping the platform
 
-Press `Ctrl+C` in the terminal running `pnpm dev`. If prompted to terminate a Windows batch job, confirm it. Do not leave development servers running after a demonstration.
+Press `Ctrl+C` in the terminal running `pnpm dev` or `pnpm dev:full`. If prompted to terminate a Windows batch job, confirm it. Then run `pnpm infra:down` so no containers remain running after a demonstration.
