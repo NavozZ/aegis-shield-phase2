@@ -57,7 +57,14 @@ jobs:
   test:
     name: test
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
+    env:
+      POSTGRES_PASSWORD: ci-only-admin-password
+      IDENTITY_DB_PASSWORD: ci-only-identity-password
+      LEDGER_DB_PASSWORD: ci-only-ledger-password
+      PAYMENTS_DB_PASSWORD: ci-only-payments-password
+      AUDIT_DB_PASSWORD: ci-only-audit-password
+      REDIS_PASSWORD: ci-only-redis-password
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -72,6 +79,16 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Test
         run: pnpm test
+      - name: Validate infrastructure configuration
+        run: pnpm infra:validate
+      - name: Start infrastructure
+        run: pnpm infra:up
+      - name: Check infrastructure
+        run: pnpm infra:check
+      - name: Stop infrastructure
+        if: always()
+        continue-on-error: true
+        run: pnpm infra:down
 
   build:
     name: build

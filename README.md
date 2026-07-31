@@ -2,7 +2,7 @@
 
 AEGIS Shield is a zero-trust, resilient, and inclusive digital banking platform with SABCL metadata protection. This monorepo is the official Duothan 6.0 Phase 2 workspace for demonstrating secure banking journeys under normal operation, active threats, and service failure.
 
-> **Current status:** Prompt 01 monorepo foundation. The customer web shell, API gateway health endpoint, shared tooling, and continuous integration are implemented. Banking capabilities are not implemented yet.
+> **Current status:** Prompt 02 local infrastructure. The customer web shell, API gateway health endpoint, PostgreSQL/Redis development infrastructure, shared tooling, and continuous integration are implemented. Banking capabilities and application data connections are not implemented yet.
 
 ## Core problem
 
@@ -24,9 +24,12 @@ SABCL (Security-Aware Blind Communication Layer) is the project's signature meta
 - API port validation, local CORS, global input validation, and graceful shutdown hooks
 - Deterministic web smoke tests and API unit/e2e tests
 - GitHub Actions jobs for lint, typecheck, test, and build
+- Reproducible Docker Compose services for PostgreSQL and authenticated Redis
+- Four service-owned prototype databases with least-privilege roles
+- Cross-platform infrastructure lifecycle, health, ownership, and validation commands
 - Reserved boundaries for future services, shared packages, and infrastructure
 
-Authentication, accounts, ledgers, payments, databases, Redis, SABCL, threat detection, service quarantine, messaging, and disaster recovery are intentionally deferred.
+Authentication, application data models and clients, accounts, ledgers, payments, SABCL, threat detection, service quarantine, production messaging, and disaster recovery are intentionally deferred.
 
 ## Monorepo structure
 
@@ -42,7 +45,8 @@ Authentication, accounts, ledgers, payments, databases, Redis, SABCL, threat det
 |   |-- architecture/         # Current boundaries and future flows
 |   |-- decisions/            # Architecture Decision Records
 |   `-- demo/                 # Phase 2 demonstration plans
-|-- infra/                    # Reserved infrastructure boundary
+|-- infra/                    # Local data infrastructure, checks, and documentation
+|-- docker-compose.yml        # Loopback-only PostgreSQL and Redis services
 |-- packages/                 # Reserved shared-package workspace
 |-- services/                 # Reserved independent-service workspace
 |-- package.json              # Root scripts and tool versions
@@ -56,6 +60,7 @@ Authentication, accounts, ledgers, payments, databases, Redis, SABCL, threat det
 - Git
 - Node.js `>=20.9` (the project currently uses Node.js 22 via `.nvmrc`)
 - pnpm `11.8.0`, as pinned by `packageManager` in `package.json`
+- Docker Desktop or Docker Engine with Docker Compose v2 (for infrastructure only)
 
 Enable the package manager through Corepack if pnpm is not already available:
 
@@ -72,13 +77,38 @@ Set-Location aegis-shield-phase2
 pnpm install
 ```
 
-The applications use safe local defaults for this milestone. Copy the environment template only when local overrides are needed:
+Copy the environment template before starting infrastructure and change every local-only password in the ignored file:
 
 ```powershell
 Copy-Item .env.example .env
 ```
 
 `.env` is ignored and must never be committed.
+
+## Local infrastructure
+
+Start Docker Desktop, then validate and run PostgreSQL and Redis:
+
+```powershell
+pnpm infra:validate
+pnpm infra:up
+pnpm infra:check
+```
+
+Start infrastructure followed by the existing web and API development processes:
+
+```powershell
+pnpm dev:full
+```
+
+Stop containers without deleting local data, or explicitly reset disposable local data:
+
+```powershell
+pnpm infra:down
+pnpm infra:reset -- --yes
+```
+
+See [infra/README.md](infra/README.md) for ports, volumes, roles, initialization behavior, logs, and troubleshooting.
 
 ## Development
 
@@ -121,9 +151,9 @@ Generated framework and Turborepo output can be removed safely with `pnpm clean`
 
 ## Architecture
 
-The browser renders the customer-facing Next.js application. The web application will call the NestJS API gateway, which will later authenticate and route requests to independently deployable services. No database, cache, or service messaging is connected in this milestone.
+The browser renders the customer-facing Next.js application. The web application will call the NestJS API gateway, which will later authenticate and route requests to independently deployable services. Local PostgreSQL and Redis are available, but no application database client, cache client, or service messaging connection exists in this milestone.
 
-See [Architecture Documentation](docs/architecture/README.md) and [ADR 0002](docs/decisions/0002-monorepo-tooling.md) for the current boundaries and tooling decision.
+See [Architecture Documentation](docs/architecture/README.md), [ADR 0002](docs/decisions/0002-monorepo-tooling.md), and [ADR 0003](docs/decisions/0003-local-data-infrastructure.md) for the current boundaries and decisions.
 
 ## Next milestones
 
