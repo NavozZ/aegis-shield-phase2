@@ -2,7 +2,7 @@
 
 AEGIS Shield is a zero-trust, resilient, and inclusive digital banking platform with SABCL metadata protection. This monorepo is the official Duothan 6.0 Phase 2 workspace for demonstrating secure banking journeys under normal operation, active threats, and service failure.
 
-> **Current status:** Prompt 04 customer authentication experience. The multilingual web UI, API Gateway, independent Identity service, PostgreSQL/Redis authentication state, shared contracts, protected application shell, and browser validation are implemented.
+> **Current status:** Prompt 05 accounts and double-entry ledger. The multilingual web UI, API Gateway, independent Identity and Ledger services, PostgreSQL/Redis state, shared contracts, protected application shell, Tier-0 account provisioning, and browser validation are implemented.
 
 ## Core problem
 
@@ -38,9 +38,19 @@ SABCL (Security-Aware Blind Communication Layer) is the project's signature meta
 - Browser WebAuthn enrollment and passkey-first sign-in with PIN/OTP fallback
 - Server-aware protected routes, session restoration, CSRF-safe logout, and unavailable-service states
 - Chromium virtual-authenticator, responsive, and axe accessibility coverage
+- Independent NestJS Ledger service and committed Prisma migration
+- Tier-0 customer account provisioning with a zero opening balance
+- Immutable double-entry journals and postings with append-only database triggers
+- Integer minor-unit money handling with BigInt and decimal-string contracts
+- Transactionally maintained balance projections and deferred database balance checks
+- Idempotent account and journal operations with payload-hash conflict detection
+- Deterministic account locking and concurrency-safe insufficient-funds enforcement
+- Ledger reconciliation command and internal reconciliation routes
+- Authenticated Gateway account routes with session-derived customer identity
+- Multilingual minimal account summary in the web application
 - Reserved boundaries for future services, shared packages, and infrastructure
 
-Accounts, ledgers, payments, SABCL, threat detection, service quarantine, production messaging, and disaster recovery are intentionally deferred.
+Transfers, transaction history, payments, SABCL, threat detection, service quarantine, production messaging, and disaster recovery are intentionally deferred.
 
 ## Monorepo structure
 
@@ -58,8 +68,9 @@ Accounts, ledgers, payments, SABCL, threat detection, service quarantine, produc
 |   `-- demo/                 # Phase 2 demonstration plans
 |-- infra/                    # Local data infrastructure, checks, and documentation
 |-- docker-compose.yml        # Loopback-only PostgreSQL and Redis services
-|-- packages/contracts/       # Versioned shared runtime auth schemas
+|-- packages/contracts/       # Versioned shared runtime auth and account schemas
 |-- services/identity/        # Private customer identity service
+|-- services/ledger/          # Private accounts and double-entry ledger service
 |-- package.json              # Root scripts and tool versions
 |-- pnpm-lock.yaml            # Single dependency lockfile
 |-- pnpm-workspace.yaml       # Workspace and build-policy configuration
@@ -134,12 +145,20 @@ pnpm dev
 - API health: `http://localhost:4000/health`
 - Gateway readiness: `http://localhost:4000/health/ready`
 - Identity service: `http://127.0.0.1:4101` (internal only)
+- Ledger service: `http://127.0.0.1:4102` (internal only)
 
 Start a single application:
 
 ```powershell
 pnpm --filter @aegis/web dev
 pnpm --filter @aegis/api-gateway dev
+```
+
+Start the built stack with readiness waiting and clean shutdown on `Ctrl+C`:
+
+```powershell
+pnpm build
+pnpm stack:start
 ```
 
 ## Quality commands
@@ -164,6 +183,17 @@ pnpm auth:test
 pnpm auth:test:e2e
 ```
 
+Run ledger checks with:
+
+```powershell
+pnpm ledger:test
+pnpm ledger:test:integration
+pnpm ledger:test:e2e
+pnpm ledger:reconcile
+```
+
+Only `pnpm ledger:test` runs without Docker. The integration, end-to-end and reconciliation commands require PostgreSQL and run in GitHub Actions or on a Docker-capable machine.
+
 Run web unit, browser, and accessibility checks with:
 
 ```powershell
@@ -179,15 +209,17 @@ Generated framework and Turborepo output can be removed safely with `pnpm clean`
 
 ## Architecture
 
-The browser loads the Next.js interface and calls the NestJS API Gateway directly for authentication. Next.js server components also ask the Gateway for safe session state before rendering protected routes. The Gateway owns the public HTTP/cookie boundary and forwards only allowlisted authentication operations to the private Identity service. Identity owns the `aegis_identity` PostgreSQL schema and its namespaced Redis authentication state. Raw opaque sessions never enter response bodies or browser storage.
+The browser loads the Next.js interface and calls the NestJS API Gateway directly for authentication and accounts. Next.js server components also ask the Gateway for safe session and account state before rendering protected routes. The Gateway owns the public HTTP/cookie boundary and forwards only allowlisted operations to the private Identity and Ledger services. Identity owns the `aegis_identity` schema and its namespaced Redis state; the Ledger owns the `aegis_ledger` schema. The Gateway derives the customer identifier from a validated session and never accepts one from a browser. Raw opaque sessions and internal tokens never enter response bodies or browser storage.
 
-See [Architecture Documentation](docs/architecture/README.md), [Identity README](services/identity/README.md), [ADR 0004](docs/decisions/0004-identity-and-session-authentication.md), [ADR 0005](docs/decisions/0005-authentication-user-experience.md), the [authentication demo](docs/demo/authentication-demo.md), and the [authentication threat model](docs/security/authentication-threat-model.md).
+Money is stored and transported as integer minor units, never as a JavaScript number. Journals are immutable and their balance is enforced by deferred database constraint triggers.
+
+See [Architecture Documentation](docs/architecture/README.md), [Identity README](services/identity/README.md), [Ledger README](services/ledger/README.md), [ADR 0004](docs/decisions/0004-identity-and-session-authentication.md), [ADR 0005](docs/decisions/0005-authentication-user-experience.md), [ADR 0006](docs/decisions/0006-accounts-and-double-entry-ledger.md), the [authentication demo](docs/demo/authentication-demo.md), the [accounts and ledger demo](docs/demo/accounts-ledger-demo.md), the [authentication threat model](docs/security/authentication-threat-model.md), and the [ledger integrity model](docs/security/ledger-integrity-model.md).
 
 ## Next milestones
 
 - production workload identity and OTP delivery
-- accounts and double-entry ledger
-- idempotent payments and inclusive access channels
+- transaction history and statements
+- idempotent transfers, payments, and inclusive access channels
 - SABCL metadata-protection path
 - threat detection and service quarantine
 - observability, audit integrity, and recovery

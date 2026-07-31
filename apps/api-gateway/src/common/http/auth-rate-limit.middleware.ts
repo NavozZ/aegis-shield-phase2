@@ -38,7 +38,7 @@ export class AuthRateLimitMiddleware implements NestMiddleware {
       response.status(HttpStatus.TOO_MANY_REQUESTS).json({
         error: {
           code: 'RATE_LIMITED',
-          message: 'Too many authentication requests.',
+          message: 'Too many requests.',
           correlationId: request.correlationId,
         },
       });

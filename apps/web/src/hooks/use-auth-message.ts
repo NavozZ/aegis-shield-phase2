@@ -15,6 +15,7 @@ export function authErrorMessage(
     temporarily_locked: dictionary.temporarilyLocked,
     authentication_failed: dictionary.authenticationFailed,
     session_expired: dictionary.sessionExpired,
+    request_conflict: dictionary.requestConflict,
     service_unavailable: dictionary.serviceUnavailable,
     network_unavailable: dictionary.networkUnavailable,
     unexpected: dictionary.unexpected,

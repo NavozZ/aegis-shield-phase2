@@ -23,9 +23,9 @@ import {
   Req,
   Res,
 } from '@nestjs/common';
-import { timingSafeEqual } from 'node:crypto';
 import type { Response } from 'express';
 import type { z } from 'zod';
+import { requireCsrfToken } from '../common/http/csrf';
 import type { RequestContext } from '../common/http/request-context';
 import { GATEWAY_CONFIG, type GatewayConfig } from '../config/gateway.config';
 import {
@@ -61,29 +61,11 @@ export class AuthController {
   }
 
   private csrf(request: RequestContext, headerValue?: string): string {
-    const cookieValue = readCookie(
+    return requireCsrfToken(
       request.header('cookie'),
       this.config.csrfCookieName,
+      headerValue,
     );
-    const supplied = headerValue?.trim() || '';
-    const left = Buffer.from(cookieValue);
-    const right = Buffer.from(supplied);
-    if (
-      left.length === 0 ||
-      left.length !== right.length ||
-      !timingSafeEqual(left, right)
-    ) {
-      throw new HttpException(
-        {
-          error: {
-            code: 'INVALID_CSRF',
-            message: 'The CSRF token is invalid.',
-          },
-        },
-        HttpStatus.FORBIDDEN,
-      );
-    }
-    return supplied;
   }
 
   private async authenticate(

@@ -1,6 +1,6 @@
 # AEGIS Shield Phase 2 User Guide
 
-This guide explains how to run and demonstrate the Prompt 04 customer onboarding and secure sign-in experience. The platform does not perform banking operations; the authenticated workspace clearly marks those features as deferred.
+This guide explains how to run and demonstrate the Prompt 05 customer onboarding, secure sign-in, and Tier-0 account experience. The platform performs no money movement; the authenticated workspace clearly marks deferred features.
 
 ## Introduction
 
@@ -170,7 +170,7 @@ Open `http://localhost:3000`. Choose English, Sinhala, or Tamil from the interfa
 3. In local demo mode only, enter the OTP displayed after the API returns it. The OTP is short-lived and single-use. Never enter a real OTP or real phone number.
 4. Create and confirm a six-digit PIN. Repeated digits, common values, and obvious ascending or descending sequences are rejected.
 5. Add a passkey when supported, or skip it for now. Passkeys are recommended because the device performs user verification and AEGIS receives only public-key credential material—not a fingerprint, face scan, or device unlock secret.
-6. Continue to `/app`. Only masked identity and session status are shown; accounts and balances are intentionally unavailable until a later prompt.
+6. Continue to `/app`. Masked identity, session status, and the Tier-0 account panel are shown.
 
 Reloading midway through onboarding clears the phone, OTP, enrollment token, and PIN flow state. Restart the flow rather than trying to recover those values from browser storage.
 
@@ -180,11 +180,21 @@ The **Sign in with passkey** action is primary. A supported browser prompts the 
 
 If no passkey is available, choose **Use phone, PIN and OTP**. Enter the synthetic phone and PIN, request the one-time code, then complete sign-in. Errors remain deliberately generic to reduce account enumeration.
 
+### Create a Tier-0 account
+
+The **Accounts and balances** panel on `/app` first shows **No account created yet** with a short explanation of the Tier-0 wallet.
+
+Select **Create Tier-0 account**. The request carries a generated idempotency key and the CSRF header, and the button is disabled while it is in flight, so a double click cannot create a second account. On success the panel shows the masked account reference, the account product, status, currency, and a balance of exactly `LKR 0.00`.
+
+A new account is opened with a zero balance. No opening entry is written and no funds are invented. Repeating the request returns the same account rather than creating another. Transaction history arrives in Prompt 06.
+
+Full account references and internal ledger identifiers are never shown; only a masked reference such as `AEGIS-****-****-8T3W` is displayed.
+
 ### Session expiration and logout
 
 Protected routes verify the session with the Gateway before rendering. Expired or revoked sessions redirect to `/sign-in`; an unavailable dependency shows a retryable service-unavailable screen. Select **Log out** to revoke the server session, clear authentication cookies, replace browser history, and return to sign-in.
 
-Dashboard, transfers, QR payments, USSD, and agent-assisted journeys remain deferred.
+Transfers, transaction history, QR payments, USSD, and agent-assisted journeys remain deferred.
 
 ## Administrator journey
 

@@ -45,7 +45,10 @@ test('@a11y authentication surfaces have no serious or critical axe violations',
     .getByRole('button', { name: 'Continue to secure workspace' })
     .click();
   await expect(page).toHaveURL(/\/app$/u);
-  await expectAccessible(page, 'protected application page');
+  await expectAccessible(page, 'protected application page without an account');
+  await page.getByRole('button', { name: 'Create Tier-0 account' }).click();
+  await expect(page.getByText('LKR 0.00')).toBeVisible();
+  await expectAccessible(page, 'protected application page with an account');
   await page.goto('/app/security');
   await expectAccessible(page, 'security settings page');
 });

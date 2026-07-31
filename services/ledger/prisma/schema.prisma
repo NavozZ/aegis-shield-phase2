@@ -1,0 +1,199 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum AccountProductType {
+  TIER0_WALLET
+}
+
+enum AccountStatus {
+  ACTIVE
+  FROZEN
+  CLOSED
+}
+
+enum LedgerAccountClass {
+  ASSET
+  LIABILITY
+  EQUITY
+  REVENUE
+  EXPENSE
+}
+
+enum NormalBalance {
+  DEBIT
+  CREDIT
+}
+
+enum PostingDirection {
+  DEBIT
+  CREDIT
+}
+
+enum JournalEntryType {
+  ACCOUNT_ADJUSTMENT
+  SETTLEMENT_FUNDING
+  INTERNAL_TEST
+}
+
+enum JournalStatus {
+  POSTED
+}
+
+enum SystemAccountType {
+  PLATFORM_SETTLEMENT_ASSET
+  CUSTOMER_FUNDS_LIABILITY_CONTROL
+}
+
+enum ActorType {
+  SERVICE
+  CUSTOMER
+  SYSTEM
+}
+
+enum IdempotencyStatus {
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum ReconciliationStatus {
+  PASS
+  FAIL
+}
+
+/// A customer-facing account. The customer identifier is issued by the Identity
+/// service; this service never authenticates a customer itself.
+model CustomerAccount {
+  id              String             @id @default(uuid()) @db.Uuid
+  customerId      String             @map("customer_id") @db.Uuid
+  publicReference String             @unique @map("public_reference") @db.VarChar(24)
+  maskedReference String             @map("masked_reference") @db.VarChar(24)
+  productType     AccountProductType @map("product_type")
+  currency        String             @db.Char(3)
+  status          AccountStatus      @default(ACTIVE)
+  ledgerAccountId String             @unique @map("ledger_account_id") @db.Uuid
+  createdAt       DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
+  ledgerAccount   LedgerAccount      @relation(fields: [ledgerAccountId], references: [id], onDelete: Restrict)
+
+  @@unique([customerId, productType, currency])
+  @@index([customerId])
+  @@map("customer_accounts")
+}
+
+/// A single account in the double-entry chart of accounts. Customer wallets are
+/// LIABILITY accounts because customer funds are owed by the platform.
+model LedgerAccount {
+  id                   String             @id @default(uuid()) @db.Uuid
+  code                 String             @unique @db.VarChar(64)
+  name                 String             @db.VarChar(128)
+  currency             String             @db.Char(3)
+  accountClass         LedgerAccountClass @map("account_class")
+  normalBalance        NormalBalance      @map("normal_balance")
+  systemAccountType    SystemAccountType? @unique @map("system_account_type")
+  allowNegativeBalance Boolean            @default(false) @map("allow_negative_balance")
+  createdAt            DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  customerAccount      CustomerAccount?
+  balanceProjection    BalanceProjection?
+  postings             JournalPosting[]
+
+  @@index([accountClass, currency])
+  @@map("ledger_accounts")
+}
+
+/// An immutable journal entry. Database triggers reject every UPDATE and DELETE
+/// and a deferred constraint trigger rejects an unbalanced entry at COMMIT.
+model JournalEntry {
+  id                 String           @id @default(uuid()) @db.Uuid
+  reference          String           @unique @db.VarChar(64)
+  entryType          JournalEntryType @map("entry_type")
+  status             JournalStatus    @default(POSTED)
+  currency           String           @db.Char(3)
+  description        String?          @db.VarChar(256)
+  idempotencyKeyHash String?          @map("idempotency_key_hash") @db.Char(64)
+  correlationId      String           @map("correlation_id") @db.Uuid
+  effectiveAt        DateTime         @map("effective_at") @db.Timestamptz(3)
+  createdAt          DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  createdByType      ActorType        @map("created_by_type")
+  createdById        String           @map("created_by_id") @db.VarChar(64)
+  metadata           Json             @default("{}")
+  postings           JournalPosting[]
+
+  @@index([createdAt])
+  @@index([correlationId])
+  @@map("journal_entries")
+}
+
+/// An immutable posting. `amountMinor` is always positive; direction carries the
+/// sign so that a stored negative amount can never silently invert a balance.
+model JournalPosting {
+  id              String           @id @default(uuid()) @db.Uuid
+  journalEntryId  String           @map("journal_entry_id") @db.Uuid
+  ledgerAccountId String           @map("ledger_account_id") @db.Uuid
+  direction       PostingDirection
+  amountMinor     BigInt           @map("amount_minor")
+  currency        String           @db.Char(3)
+  sequence        Int
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  journalEntry    JournalEntry     @relation(fields: [journalEntryId], references: [id], onDelete: Restrict)
+  ledgerAccount   LedgerAccount    @relation(fields: [ledgerAccountId], references: [id], onDelete: Restrict)
+
+  @@unique([journalEntryId, sequence])
+  @@index([ledgerAccountId, createdAt])
+  @@map("journal_postings")
+}
+
+/// A transactionally maintained projection of immutable posting totals. It is a
+/// performance optimisation: reconciliation recomputes totals from postings.
+model BalanceProjection {
+  ledgerAccountId  String        @id @map("ledger_account_id") @db.Uuid
+  debitTotalMinor  BigInt        @default(0) @map("debit_total_minor")
+  creditTotalMinor BigInt        @default(0) @map("credit_total_minor")
+  version          Int           @default(0)
+  updatedAt        DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  ledgerAccount    LedgerAccount @relation(fields: [ledgerAccountId], references: [id], onDelete: Cascade)
+
+  @@map("balance_projections")
+}
+
+/// Stores only a hash of the idempotency key and a hash of the canonical request
+/// payload. The raw key is never persisted or logged.
+model IdempotencyRecord {
+  id           String            @id @default(uuid()) @db.Uuid
+  scope        String            @db.VarChar(64)
+  keyHash      String            @map("key_hash") @db.Char(64)
+  requestHash  String            @map("request_hash") @db.Char(64)
+  status       IdempotencyStatus @default(IN_PROGRESS)
+  responseBody Json?             @map("response_body")
+  createdAt    DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+  expiresAt    DateTime          @map("expires_at") @db.Timestamptz(3)
+
+  @@unique([scope, keyHash])
+  @@index([expiresAt])
+  @@map("idempotency_records")
+}
+
+model ReconciliationRun {
+  id                      String               @id @default(uuid()) @db.Uuid
+  status                  ReconciliationStatus
+  startedAt               DateTime             @map("started_at") @db.Timestamptz(3)
+  completedAt             DateTime             @map("completed_at") @db.Timestamptz(3)
+  checkedJournalEntries   Int                  @map("checked_journal_entries")
+  checkedPostings         Int                  @map("checked_postings")
+  checkedLedgerAccounts   Int                  @map("checked_ledger_accounts")
+  checkedCustomerAccounts Int                  @map("checked_customer_accounts")
+  issueCount              Int                  @map("issue_count")
+  issues                  Json                 @default("[]")
+  correlationId           String               @map("correlation_id") @db.Uuid
+  createdAt               DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([createdAt])
+  @@map("reconciliation_runs")
+}
