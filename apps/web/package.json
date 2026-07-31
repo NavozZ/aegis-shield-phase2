@@ -8,22 +8,39 @@
     "start": "next start --port 3000",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "node --test tests/foundation.test.mjs",
+    "pretest": "pnpm --filter @aegis/contracts build",
+    "test": "vitest run",
+    "test:e2e": "node e2e/run.mjs functional",
+    "test:a11y": "node e2e/run.mjs a11y",
+    "e2e:install": "playwright install chromium",
     "clean": "node -e \"require('node:fs').rmSync('.next', { recursive: true, force: true })\""
   },
   "dependencies": {
+    "@aegis/contracts": "workspace:*",
+    "@simplewebauthn/browser": "13.3.0",
     "next": "16.2.12",
     "react": "19.2.4",
     "react-dom": "19.2.4"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.12.1",
+    "@playwright/test": "1.62.1",
     "@tailwindcss/postcss": "^4",
+    "@testing-library/dom": "10.4.1",
+    "@testing-library/jest-dom": "7.0.0",
+    "@testing-library/react": "16.3.2",
+    "@testing-library/user-event": "14.6.1",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "6.0.5",
     "eslint": "^9",
     "eslint-config-next": "16.2.12",
+    "jsdom": "30.0.1",
+    "pg": "8.22.0",
+    "redis": "6.1.0",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "4.1.10"
   }
 }

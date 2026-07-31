@@ -1,6 +1,6 @@
 # Architecture Documentation
 
-This document describes the currently implemented Prompt 03 boundaries and reserves the flows that later milestones must define. Architecture changes must preserve explicit trust boundaries, data ownership, and bounded failure behavior.
+This document describes the currently implemented Prompt 04 authentication boundaries and reserves the flows that later milestones must define. Architecture changes must preserve explicit trust boundaries, data ownership, and bounded failure behavior.
 
 ## Current monorepo boundaries
 
@@ -16,7 +16,7 @@ pnpm provides one workspace and root lockfile. Turborepo coordinates tasks witho
 
 ## Web application responsibility
 
-`apps/web` is the Next.js customer experience boundary. It currently renders only the responsive AEGIS Shield foundation page. It owns presentation, accessibility, and later customer-channel composition; it must not own ledger state, authentication policy, or authoritative banking records.
+`apps/web` is the Next.js customer experience boundary. It owns multilingual presentation, accessible multi-step flow state, browser WebAuthn ceremonies, safe API integration, and server-aware protected-route checks. Sensitive onboarding and fallback values remain in React memory and are cleared on reload or completion. The web app does not own authentication policy, ledger state, or authoritative banking records.
 
 ## API gateway responsibility
 
@@ -42,15 +42,15 @@ Each stateful service will own its data store and publish explicit contracts. Sh
 ## Current and future data flow
 
 ```text
-Browser
-  → Next.js web application
-  → NestJS API gateway
-  → allowlisted Identity API (internal token)
-  → Identity-owned PostgreSQL app schema
-  → Identity Redis namespace
+Browser → Next.js UI assets and protected server rendering
+Browser → NestJS API Gateway authentication routes (credentialed CORS)
+Next.js server → NestJS API Gateway session route (session cookie only)
+NestJS API Gateway → allowlisted Identity API (internal token)
+Identity → Identity-owned PostgreSQL app schema
+Identity → Identity Redis namespace
 ```
 
-The authentication backend and Gateway-to-Identity calls are implemented. The customer-facing authentication UI, banking business requests, and all other service connections are deferred.
+The browser never calls Identity directly. The Gateway sets the HttpOnly session and readable double-submit CSRF cookies, validates the exact configured web origin, and normalizes public errors. Next.js receives only safe session fields when rendering protected pages. Banking business requests and all other service connections remain deferred.
 
 ## Local data and messaging boundaries
 
