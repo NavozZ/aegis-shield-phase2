@@ -54,6 +54,8 @@ coverage/
 htmlcov/
 test-results/
 playwright-report/
+.playwright-report/
+.playwright-artifacts/
 
 # Build artifacts
 dist/

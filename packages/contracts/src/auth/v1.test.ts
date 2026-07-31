@@ -3,7 +3,14 @@ import test from 'node:test';
 import {
   createPinSchema,
   e164PhoneSchema,
+  enrollmentResponseSchema,
+  logoutResponseSchema,
+  passkeyAuthenticationOptionsSchema,
+  passkeyAuthenticationOptionsResponseSchema,
   passkeyAuthenticationVerificationSchema,
+  passkeyRegistrationOptionsSchema,
+  passkeyRegistrationOptionsResponseSchema,
+  passkeyVerifiedResponseSchema,
   preferredLanguageSchema,
   requestOtpSchema,
 } from './v1.js';
@@ -71,4 +78,51 @@ test('rejects malformed passkey authentication payloads', () => {
     }).success,
     false,
   );
+});
+
+test('requires a bounded challenge in passkey option responses', () => {
+  for (const schema of [
+    passkeyRegistrationOptionsResponseSchema,
+    passkeyAuthenticationOptionsResponseSchema,
+  ]) {
+    assert.equal(schema.safeParse({}).success, false);
+    assert.equal(
+      schema.safeParse({ challenge: 'challenge-value-long-enough' }).success,
+      true,
+    );
+  }
+});
+
+test('accepts empty passkey options requests', () => {
+  for (const schema of [
+    passkeyRegistrationOptionsSchema,
+    passkeyAuthenticationOptionsSchema,
+  ]) {
+    assert.equal(schema.safeParse({}).success, true);
+  }
+});
+
+test('validates browser-facing enrollment and completion responses', () => {
+  const user = {
+    id: '550e8400-e29b-41d4-a716-446655440000',
+    phoneMasked: '+94******567',
+    preferredLanguage: 'EN',
+    kycTier: 0,
+    status: 'ACTIVE',
+    phoneVerified: true,
+  };
+  assert.equal(
+    enrollmentResponseSchema.safeParse({
+      enrollmentToken: 'a'.repeat(32),
+      expiresInSeconds: 600,
+      user,
+    }).success,
+    true,
+  );
+  assert.deepEqual(passkeyVerifiedResponseSchema.parse({ verified: true }), {
+    verified: true,
+  });
+  assert.deepEqual(logoutResponseSchema.parse({ revoked: true }), {
+    revoked: true,
+  });
 });

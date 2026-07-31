@@ -113,6 +113,23 @@ export const sessionResponseSchema = z.object({
 });
 export type SessionResponse = z.infer<typeof sessionResponseSchema>;
 
+export const enrollmentResponseSchema = z.object({
+  enrollmentToken: z.string().min(32).max(512),
+  expiresInSeconds: z.number().int().positive().max(3_600),
+  user: maskedUserSchema,
+});
+export type EnrollmentResponse = z.infer<typeof enrollmentResponseSchema>;
+
+export const passkeyVerifiedResponseSchema = z.object({
+  verified: z.literal(true),
+});
+export type PasskeyVerifiedResponse = z.infer<
+  typeof passkeyVerifiedResponseSchema
+>;
+
+export const logoutResponseSchema = z.object({ revoked: z.literal(true) });
+export type LogoutResponse = z.infer<typeof logoutResponseSchema>;
+
 const registrationCredentialSchema = z.object({
   id: z.string().min(1).max(2048),
   rawId: z.string().min(1).max(4096).optional(),
@@ -148,6 +165,13 @@ export type PasskeyRegistrationOptions = z.infer<
   typeof passkeyRegistrationOptionsSchema
 >;
 
+export const passkeyRegistrationOptionsResponseSchema = z
+  .object({ challenge: z.string().min(16).max(4096) })
+  .passthrough();
+export type PasskeyRegistrationOptionsResponse = z.infer<
+  typeof passkeyRegistrationOptionsResponseSchema
+>;
+
 export const passkeyRegistrationVerificationSchema = z.object({
   challenge: z.string().min(16).max(4096),
   credential: registrationCredentialSchema,
@@ -160,6 +184,13 @@ export type PasskeyRegistrationVerificationInput = z.infer<
 export const passkeyAuthenticationOptionsSchema = z.object({}).passthrough();
 export type PasskeyAuthenticationOptions = z.infer<
   typeof passkeyAuthenticationOptionsSchema
+>;
+
+export const passkeyAuthenticationOptionsResponseSchema = z
+  .object({ challenge: z.string().min(16).max(4096) })
+  .passthrough();
+export type PasskeyAuthenticationOptionsResponse = z.infer<
+  typeof passkeyAuthenticationOptionsResponseSchema
 >;
 
 export const passkeyAuthenticationVerificationSchema = z.object({

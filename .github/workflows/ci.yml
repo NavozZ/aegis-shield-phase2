@@ -57,7 +57,7 @@ jobs:
   test:
     name: test
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 45
     env:
       POSTGRES_PASSWORD: ci-only-admin-password
       IDENTITY_DB_PASSWORD: ci-only-identity-password
@@ -101,8 +101,24 @@ jobs:
         run: pnpm --filter @aegis/identity-service test
       - name: Test API Gateway
         run: pnpm --filter @aegis/api-gateway test
+      - name: Test web unit and components
+        run: pnpm web:test
       - name: Test authentication end to end
         run: pnpm auth:test:e2e
+      - name: Install Playwright Chromium
+        run: pnpm --filter @aegis/web exec playwright install --with-deps chromium
+      - name: Test browser authentication journeys
+        run: pnpm web:test:e2e
+      - name: Test browser accessibility
+        run: pnpm web:test:a11y
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: apps/web/.playwright-report/results.xml
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Stop infrastructure
         if: always()
         continue-on-error: true

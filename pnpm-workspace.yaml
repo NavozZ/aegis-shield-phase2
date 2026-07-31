@@ -9,3 +9,12 @@ allowBuilds:
   prisma: true
   sharp: true
   unrs-resolver: true
+
+overrides:
+  next>postcss: 8.5.23
+  next>sharp: 0.35.3
+
+minimumReleaseAgeExclude:
+  - '@playwright/test@1.62.1'
+  - playwright-core@1.62.1
+  - playwright@1.62.1

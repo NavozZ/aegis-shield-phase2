@@ -1,6 +1,6 @@
 # AEGIS Shield Phase 2 User Guide
 
-This guide explains how to run the Prompt 03 foundation, infrastructure, and authentication backend. The platform does not perform banking operations. Customer-facing onboarding and sign-in screens are implemented in Prompt 04; use backend tests for this milestone.
+This guide explains how to run and demonstrate the Prompt 04 customer onboarding and secure sign-in experience. The platform does not perform banking operations; the authenticated workspace clearly marks those features as deferred.
 
 ## Introduction
 
@@ -70,6 +70,8 @@ pnpm dev:full
 
 This verifies infrastructure, deploys committed Identity migrations, and then starts all workspaces. It leaves Docker infrastructure running when `Ctrl+C` stops applications. Normal `pnpm dev` never alters databases.
 
+For a local demonstration, keep `DEMO_AUTH_ENABLED=true`. This causes the API to return a one-time demonstration OTP to the browser. It is rejected in production mode and must never be treated as an OTP delivery design.
+
 7. View all infrastructure logs or one service:
 
 ```powershell
@@ -132,7 +134,7 @@ The response contains `status: ok`, service name, version, a dynamic ISO-8601 ti
 
 No production or seeded users are committed. Demo OTP is local/test-only and appears only when `DEMO_AUTH_ENABLED=true`; production startup rejects that mode. Always use synthetic example-style phone data.
 
-## Testing the authentication backend
+## Testing authentication
 
 Start infrastructure and apply the committed migration:
 
@@ -149,13 +151,40 @@ Run deterministic and real-infrastructure authentication tests:
 ```powershell
 pnpm auth:test
 pnpm auth:test:e2e
+pnpm web:test
+pnpm web:e2e:install
+pnpm web:test:e2e
+pnpm web:test:a11y
 ```
 
-The e2e suite starts Identity as a separate loopback service, calls onboarding and sign-in only through the API Gateway, verifies cookie/CSRF/logout/lockout/passkey-option behavior, and performs scoped cleanup. A physical browser passkey ceremony is not claimed here.
+The API e2e suite calls onboarding and sign-in only through the Gateway. The Chromium suite additionally performs the real browser WebAuthn ceremony with a virtual authenticator, validates fallback sign-in, checks responsive layouts, and runs axe accessibility checks. Browser harnesses clean only their named synthetic records and stop their controlled processes and containers.
 
 ## Customer journeys
 
-The web foundation page is still the only customer view. Prompt 04 will connect accessible onboarding and sign-in screens to these APIs. Dashboard, transfers, QR payments, USSD, and agent-assisted journeys remain deferred.
+Open `http://localhost:3000`. Choose English, Sinhala, or Tamil from the interface-language selector; the preference is the only authentication-related value stored in browser storage.
+
+### Create secure access
+
+1. Select **Create secure access**.
+2. Enter a synthetic E.164 number, select the interface language, accept the demonstration consent, and request a code.
+3. In local demo mode only, enter the OTP displayed after the API returns it. The OTP is short-lived and single-use. Never enter a real OTP or real phone number.
+4. Create and confirm a six-digit PIN. Repeated digits, common values, and obvious ascending or descending sequences are rejected.
+5. Add a passkey when supported, or skip it for now. Passkeys are recommended because the device performs user verification and AEGIS receives only public-key credential material—not a fingerprint, face scan, or device unlock secret.
+6. Continue to `/app`. Only masked identity and session status are shown; accounts and balances are intentionally unavailable until a later prompt.
+
+Reloading midway through onboarding clears the phone, OTP, enrollment token, and PIN flow state. Restart the flow rather than trying to recover those values from browser storage.
+
+### Sign in
+
+The **Sign in with passkey** action is primary. A supported browser prompts the registered authenticator and returns to the protected workspace after successful verification.
+
+If no passkey is available, choose **Use phone, PIN and OTP**. Enter the synthetic phone and PIN, request the one-time code, then complete sign-in. Errors remain deliberately generic to reduce account enumeration.
+
+### Session expiration and logout
+
+Protected routes verify the session with the Gateway before rendering. Expired or revoked sessions redirect to `/sign-in`; an unavailable dependency shows a retryable service-unavailable screen. Select **Log out** to revoke the server session, clear authentication cookies, replace browser history, and return to sign-in.
+
+Dashboard, transfers, QR payments, USSD, and agent-assisted journeys remain deferred.
 
 ## Administrator journey
 
@@ -222,6 +251,22 @@ Do not delete source files or the root lockfile.
 ### Health check is unavailable
 
 Confirm the API process is running, verify its startup port in the terminal, and request `/health` rather than the root path.
+
+### The web app shows that the secure service is unavailable
+
+Confirm all three application ports are listening, then inspect only local development logs:
+
+```powershell
+Invoke-RestMethod http://localhost:4000/health
+Invoke-RestMethod http://localhost:4000/health/ready
+Invoke-RestMethod http://127.0.0.1:4101/health/live
+```
+
+Run `pnpm infra:check` if Gateway readiness reports an Identity dependency failure. Do not paste cookies, PINs, OTPs, phone numbers, or environment values into issue reports.
+
+### Passkeys are unavailable or cancelled
+
+Use a current browser on `http://localhost:3000`, which must match the configured WebAuthn origin and RP ID. Cancelling the device prompt does not lock the account; retry or use PIN/OTP fallback. This prototype does not provide production authenticator recovery.
 
 ## Stopping the platform
 

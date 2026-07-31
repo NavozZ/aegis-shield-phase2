@@ -2,7 +2,7 @@
 
 AEGIS Shield is a zero-trust, resilient, and inclusive digital banking platform with SABCL metadata protection. This monorepo is the official Duothan 6.0 Phase 2 workspace for demonstrating secure banking journeys under normal operation, active threats, and service failure.
 
-> **Current status:** Prompt 03 secure authentication backend. The customer web shell, API Gateway, independent Identity service, PostgreSQL/Redis authentication state, shared contracts, and CI validation are implemented. The customer-facing authentication UI is deferred to Prompt 04.
+> **Current status:** Prompt 04 customer authentication experience. The multilingual web UI, API Gateway, independent Identity service, PostgreSQL/Redis authentication state, shared contracts, protected application shell, and browser validation are implemented.
 
 ## Core problem
 
@@ -33,9 +33,14 @@ SABCL (Security-Aware Blind Communication Layer) is the project's signature meta
 - WebAuthn/passkey backend boundaries
 - Gateway allowlisting, HttpOnly session cookies, and CSRF protection
 - Authentication unit, integration, and real-infrastructure e2e tests
+- English, Sinhala, and Tamil customer authentication journeys
+- Accessible multi-step onboarding with phone consent, OTP, and PIN creation
+- Browser WebAuthn enrollment and passkey-first sign-in with PIN/OTP fallback
+- Server-aware protected routes, session restoration, CSRF-safe logout, and unavailable-service states
+- Chromium virtual-authenticator, responsive, and axe accessibility coverage
 - Reserved boundaries for future services, shared packages, and infrastructure
 
-The final authentication UI, accounts, ledgers, payments, SABCL, threat detection, service quarantine, production messaging, and disaster recovery are intentionally deferred.
+Accounts, ledgers, payments, SABCL, threat detection, service quarantine, production messaging, and disaster recovery are intentionally deferred.
 
 ## Monorepo structure
 
@@ -159,17 +164,27 @@ pnpm auth:test
 pnpm auth:test:e2e
 ```
 
+Run web unit, browser, and accessibility checks with:
+
+```powershell
+pnpm web:test
+pnpm web:e2e:install
+pnpm web:test:e2e
+pnpm web:test:a11y
+```
+
+Browser tests use synthetic identities, start controlled local dependencies, clean only their own records, and stop applications and containers afterward.
+
 Generated framework and Turborepo output can be removed safely with `pnpm clean`.
 
 ## Architecture
 
-The browser calls the NestJS API Gateway. The Gateway owns the public HTTP/cookie boundary and forwards only allowlisted authentication operations to the private Identity service. Identity owns the `aegis_identity` PostgreSQL schema and its namespaced Redis authentication state. Raw opaque sessions never enter response bodies.
+The browser loads the Next.js interface and calls the NestJS API Gateway directly for authentication. Next.js server components also ask the Gateway for safe session state before rendering protected routes. The Gateway owns the public HTTP/cookie boundary and forwards only allowlisted authentication operations to the private Identity service. Identity owns the `aegis_identity` PostgreSQL schema and its namespaced Redis authentication state. Raw opaque sessions never enter response bodies or browser storage.
 
-See [Architecture Documentation](docs/architecture/README.md), [Identity README](services/identity/README.md), [ADR 0004](docs/decisions/0004-identity-and-session-authentication.md), and the [authentication threat model](docs/security/authentication-threat-model.md).
+See [Architecture Documentation](docs/architecture/README.md), [Identity README](services/identity/README.md), [ADR 0004](docs/decisions/0004-identity-and-session-authentication.md), [ADR 0005](docs/decisions/0005-authentication-user-experience.md), the [authentication demo](docs/demo/authentication-demo.md), and the [authentication threat model](docs/security/authentication-threat-model.md).
 
 ## Next milestones
 
-- customer authentication UI and accessible browser ceremonies
 - production workload identity and OTP delivery
 - accounts and double-entry ledger
 - idempotent payments and inclusive access channels

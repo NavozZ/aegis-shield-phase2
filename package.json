@@ -34,7 +34,11 @@
     "db:deploy:identity": "pnpm --filter @aegis/identity-service prisma:migrate:deploy",
     "db:validate:identity": "pnpm --filter @aegis/identity-service prisma:validate",
     "auth:test": "pnpm --filter @aegis/contracts test && pnpm --filter @aegis/identity-service test && pnpm --filter @aegis/api-gateway test",
-    "auth:test:e2e": "pnpm --filter @aegis/identity-service test:e2e && pnpm --filter @aegis/api-gateway test:e2e"
+    "auth:test:e2e": "pnpm --filter @aegis/identity-service test:e2e && pnpm --filter @aegis/api-gateway test:e2e",
+    "web:test": "pnpm --filter @aegis/web test",
+    "web:test:e2e": "pnpm --filter @aegis/web test:e2e",
+    "web:test:a11y": "pnpm --filter @aegis/web test:a11y",
+    "web:e2e:install": "pnpm --filter @aegis/web e2e:install"
   },
   "devDependencies": {
     "prettier": "3.9.6",
