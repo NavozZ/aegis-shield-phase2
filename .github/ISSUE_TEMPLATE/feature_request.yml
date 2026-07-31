@@ -1,8 +1,8 @@
 name: Feature request
 description: Propose a scoped improvement to AEGIS Shield
-title: "[Feature]: "
+title: '[Feature]: '
 labels:
-  - "type:feature"
+  - 'type:feature'
 body:
   - type: markdown
     attributes:

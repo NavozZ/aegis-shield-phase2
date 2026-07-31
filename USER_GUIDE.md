@@ -1,81 +1,142 @@
 # AEGIS Shield Phase 2 User Guide
 
-This guide will become the operator-facing reference for installing, running, and demonstrating the AEGIS Shield Phase 2 platform. The repository currently contains governance and documentation only.
+This guide explains how to run the Prompt 01 foundation locally. The current platform exposes a customer-facing foundation page and an API health endpoint only; it does not perform banking operations.
 
 ## Introduction
 
-AEGIS Shield demonstrates resilient and inclusive digital banking using zero-trust controls, independently deployable services, double-entry accounting, metadata-protected communication, and recovery workflows.
-
-To be completed during implementation.
+AEGIS Shield is a Duothan 6.0 hackathon prototype for resilient and inclusive zero-trust banking. All demonstrations must use synthetic data and fake identities.
 
 ## System requirements
 
-Supported operating systems, CPU and memory requirements, container tooling, language runtimes, and browser requirements will be listed here.
+- Git
+- Node.js `>=20.9`; Node.js 22 is selected by `.nvmrc`
+- pnpm `11.8.0`
+- Available local TCP ports 3000 and 4000
 
-To be completed during implementation.
+Confirm the toolchain:
+
+```powershell
+node --version
+pnpm --version
+```
 
 ## Installation
 
-Repository cloning, dependency installation, and build commands will be documented here.
+Clone and install from the repository root:
 
-To be completed during implementation.
+```powershell
+git clone https://github.com/NavozZ/aegis-shield-phase2.git
+Set-Location aegis-shield-phase2
+pnpm install
+```
+
+Do not run `npm install` or Yarn in this repository. The monorepo uses one root `pnpm-lock.yaml`.
 
 ## Environment setup
 
-Local environment variables, safe key generation, database initialization, and configuration validation will be documented here. Never use real banking credentials or commit a local `.env` file.
+The foundation applications use safe local defaults. If a local override file is needed, copy the documented template:
 
-To be completed during implementation.
+```powershell
+Copy-Item .env.example .env
+```
+
+The resulting `.env` is ignored. Keep every real credential out of Git. For this milestone, `API_PORT` can also be set in the terminal before starting the API. The default is 4000.
 
 ## Starting the platform
 
-Commands and expected health checks for starting all required services will be documented here.
+Start the web application and API gateway together:
 
-To be completed during implementation.
+```powershell
+pnpm dev
+```
+
+Open `http://localhost:3000`. Turborepo prefixes each process log with its workspace package name.
+
+## Starting only the web application
+
+```powershell
+pnpm --filter @aegis/web dev
+```
+
+Open `http://localhost:3000`.
+
+## Starting only the API gateway
+
+```powershell
+pnpm --filter @aegis/api-gateway dev
+```
+
+The gateway listens on `http://localhost:4000` by default.
+
+## Checking API health
+
+With the API gateway running:
+
+```powershell
+Invoke-RestMethod http://localhost:4000/health
+```
+
+The response contains `status: ok`, service name, version, a dynamic ISO-8601 timestamp, and the current environment. It contains no database or secret information.
 
 ## Demo user credentials
 
-Synthetic, local-only demonstration identities and the process for resetting them will be documented here. No real credentials will be included.
-
-To be completed during implementation.
+No users or credentials exist in Prompt 01. Authentication will be implemented in a later milestone using synthetic demonstration identities only.
 
 ## Customer journeys
 
-Steps for login, account viewing, transfers, QR/offline payments, USSD access, and agent-assisted banking will be documented here.
-
-To be completed during implementation.
+The web foundation page is the only customer view. Login, dashboard, transfers, QR payments, USSD, and agent-assisted journeys are intentionally deferred.
 
 ## Administrator journey
 
-Steps for accessing the security operations console, reviewing alerts, and managing permitted administrative actions will be documented here.
-
-To be completed during implementation.
+To be completed during implementation. No security operations console exists yet.
 
 ## Security demonstration
 
-The repeatable threat-detection, risk response, service-quarantine, and audit-integrity scenarios will be documented here.
-
-To be completed during implementation.
+To be completed during implementation. Threat detection and quarantine are not part of Prompt 01.
 
 ## SABCL demonstration
 
-The procedure for comparing baseline and SABCL-protected service traffic, including expected metadata observations, will be documented here.
-
-To be completed during implementation.
+To be completed during implementation. SABCL communication is not part of Prompt 01.
 
 ## Recovery demonstration
 
-Failure injection, data recovery, reconciliation, and evidence-verification steps will be documented here.
-
-To be completed during implementation.
+To be completed during implementation. Databases, audit storage, and recovery flows are not part of Prompt 01.
 
 ## Troubleshooting
 
-Known startup, connectivity, data, authentication, and observability problems and their diagnostic steps will be documented here.
+### pnpm is unavailable
 
-To be completed during implementation.
+Use the official Corepack route:
+
+```powershell
+corepack enable
+corepack prepare pnpm@11.8.0 --activate
+```
+
+### A port is already in use
+
+Stop the process using port 3000 or 4000. For a temporary API-only override:
+
+```powershell
+$env:API_PORT = '4100'
+pnpm --filter @aegis/api-gateway dev
+```
+
+Values outside 1–65535 cause the API to fail safely with a configuration error.
+
+### Dependencies or generated output are stale
+
+```powershell
+pnpm clean
+pnpm install
+```
+
+Do not delete source files or the root lockfile.
+
+### Health check is unavailable
+
+Confirm the API process is running, verify its startup port in the terminal, and request `/health` rather than the root path.
 
 ## Stopping the platform
 
-Graceful shutdown, local resource cleanup, and state-preservation commands will be documented here.
-
-To be completed during implementation.
+Press `Ctrl+C` in the terminal running `pnpm dev`. If prompted to terminate a Windows batch job, confirm it. Do not leave development servers running after a demonstration.
