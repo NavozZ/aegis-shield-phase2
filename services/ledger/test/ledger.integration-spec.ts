@@ -152,9 +152,10 @@ describe('ledger integration', () => {
         SELECT "system_account_type", "allow_negative_balance"
         FROM "app"."ledger_accounts"
         WHERE "system_account_type" IS NOT NULL
-        ORDER BY "system_account_type"
       `;
-      expect(rows.map((row) => row.system_account_type)).toEqual([
+      // Sorted in JavaScript: ordering an enum column in PostgreSQL follows the
+      // type's declaration order, which is not the assertion's concern here.
+      expect(rows.map((row) => row.system_account_type).sort()).toEqual([
         'CUSTOMER_FUNDS_LIABILITY_CONTROL',
         'PLATFORM_SETTLEMENT_ASSET',
       ]);
