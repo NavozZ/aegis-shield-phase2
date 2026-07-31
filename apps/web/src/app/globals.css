@@ -690,6 +690,50 @@ h3 {
   border-color: #8cdace;
 }
 
+.account-panel {
+  display: grid;
+  gap: 1rem;
+  padding: 1.5rem;
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  background: white;
+  box-shadow: 0 12px 38px rgba(13, 42, 68, 0.07);
+}
+.account-panel h2 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+.account-panel p {
+  margin: 0;
+  color: var(--muted);
+}
+.account-panel .button {
+  justify-self: start;
+}
+.account-empty {
+  font-weight: 700;
+  color: var(--navy-950) !important;
+}
+.account-summary {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 1rem;
+  margin: 0;
+}
+.account-summary dt {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+.account-summary dd {
+  margin: 0.35rem 0 0;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+.account-balance {
+  font-variant-numeric: tabular-nums;
+  font-size: 1.15rem;
+}
+
 @media (max-width: 900px) {
   .hero {
     grid-template-columns: 1fr;
@@ -699,6 +743,9 @@ h3 {
   }
   .principle-grid,
   .feature-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .account-summary {
     grid-template-columns: 1fr 1fr;
   }
   .principle-grid article:nth-child(2) {

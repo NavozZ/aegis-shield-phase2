@@ -5,9 +5,12 @@ export interface GatewayConfig {
   nodeEnvironment: string;
   identityServiceUrl: string;
   identityInternalToken: string;
+  ledgerServiceUrl: string;
+  ledgerInternalToken: string;
   sessionCookieName: string;
   csrfCookieName: string;
   identityTimeoutMs: number;
+  ledgerTimeoutMs: number;
 }
 
 export const GATEWAY_CONFIG = Symbol('GATEWAY_CONFIG');
@@ -38,25 +41,36 @@ export function createGatewayConfig(): GatewayConfig {
     identityServiceUrl:
       process.env.IDENTITY_SERVICE_URL?.trim() || 'http://127.0.0.1:4101',
     identityInternalToken: requiredSetting('IDENTITY_INTERNAL_TOKEN'),
+    ledgerServiceUrl:
+      process.env.LEDGER_SERVICE_URL?.trim() || 'http://127.0.0.1:4102',
+    ledgerInternalToken: requiredSetting('LEDGER_INTERNAL_TOKEN'),
     sessionCookieName:
       process.env.AUTH_SESSION_COOKIE_NAME?.trim() || 'aegis_session',
     csrfCookieName: process.env.AUTH_CSRF_COOKIE_NAME?.trim() || 'aegis_csrf',
     identityTimeoutMs: integerSetting('IDENTITY_HTTP_TIMEOUT_MS', 3_000),
+    ledgerTimeoutMs: integerSetting('LEDGER_HTTP_TIMEOUT_MS', 5_000),
   };
 
-  const parsedIdentityUrl = new URL(configuration.identityServiceUrl);
-  if (!['http:', 'https:'].includes(parsedIdentityUrl.protocol)) {
-    throw new Error('IDENTITY_SERVICE_URL must use HTTP or HTTPS.');
+  for (const [name, value] of [
+    ['IDENTITY_SERVICE_URL', configuration.identityServiceUrl],
+    ['LEDGER_SERVICE_URL', configuration.ledgerServiceUrl],
+  ] as const) {
+    if (!['http:', 'https:'].includes(new URL(value).protocol)) {
+      throw new Error(`${name} must use HTTP or HTTPS.`);
+    }
   }
-  if (
-    configuration.nodeEnvironment === 'production' &&
-    /change-me|local-only|placeholder/iu.test(
-      configuration.identityInternalToken,
-    )
-  ) {
-    throw new Error(
-      'IDENTITY_INTERNAL_TOKEN must be configured in production.',
-    );
+  if (configuration.nodeEnvironment === 'production') {
+    const placeholders = (
+      [
+        ['IDENTITY_INTERNAL_TOKEN', configuration.identityInternalToken],
+        ['LEDGER_INTERNAL_TOKEN', configuration.ledgerInternalToken],
+      ] as const
+    ).filter(([, value]) => /change-me|local-only|placeholder/iu.test(value));
+    if (placeholders.length > 0) {
+      throw new Error(
+        `${placeholders.map(([name]) => name).join(' and ')} must be configured in production.`,
+      );
+    }
   }
   return configuration;
 }

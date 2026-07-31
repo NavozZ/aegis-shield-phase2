@@ -66,8 +66,13 @@ jobs:
       AUDIT_DB_PASSWORD: ci-only-audit-password
       REDIS_PASSWORD: ci-only-redis-password
       IDENTITY_DATABASE_URL: postgresql://aegis_identity:ci-only-identity-password@127.0.0.1:5432/aegis_identity?schema=app
+      LEDGER_DATABASE_URL: postgresql://aegis_ledger:ci-only-ledger-password@127.0.0.1:5432/aegis_ledger?schema=app
       REDIS_URL: redis://:ci-only-redis-password@127.0.0.1:6379/0
       IDENTITY_INTERNAL_TOKEN: ci-only-identity-internal-token
+      LEDGER_INTERNAL_TOKEN: ci-only-ledger-internal-token
+      LEDGER_SERVICE_PORT: 4102
+      LEDGER_SERVICE_URL: http://127.0.0.1:4102
+      LEDGER_DEFAULT_CURRENCY: LKR
       IDENTITY_REDIS_PREFIX: 'aegis:identity:test:ci:'
       DEMO_AUTH_ENABLED: true
       FIELD_ENCRYPTION_KEY: CI_ONLY_NOT_PRODUCTION_KEY
@@ -85,32 +90,42 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Validate infrastructure configuration
         run: pnpm infra:validate
-      - name: Start infrastructure
+      - name: Start PostgreSQL and Redis
         run: pnpm infra:up
-      - name: Check infrastructure
+      - name: Check infrastructure health
         run: pnpm infra:check
-      - name: Generate Identity Prisma Client
+      - name: Generate Identity and Ledger Prisma Clients
         run: pnpm db:generate
       - name: Apply committed Identity migrations
         run: pnpm db:deploy:identity
+      - name: Apply committed Ledger migrations
+        run: pnpm db:deploy:ledger
       - name: Test infrastructure tooling
         run: node --test infra/scripts/infra.test.mjs
       - name: Test shared contracts
         run: pnpm --filter @aegis/contracts test
       - name: Test Identity service
         run: pnpm --filter @aegis/identity-service test
+      - name: Test Ledger service units
+        run: pnpm ledger:test
+      - name: Test Ledger integration, immutability and concurrency
+        run: pnpm ledger:test:integration
       - name: Test API Gateway
         run: pnpm --filter @aegis/api-gateway test
-      - name: Test web unit and components
-        run: pnpm web:test
       - name: Test authentication end to end
         run: pnpm auth:test:e2e
+      - name: Test Ledger and Gateway accounts end to end
+        run: pnpm ledger:test:e2e
+      - name: Test web unit and components
+        run: pnpm web:test
       - name: Install Playwright Chromium
         run: pnpm --filter @aegis/web exec playwright install --with-deps chromium
-      - name: Test browser authentication journeys
+      - name: Test browser authentication and account journeys
         run: pnpm web:test:e2e
       - name: Test browser accessibility
         run: pnpm web:test:a11y
+      - name: Reconcile the ledger
+        run: pnpm --filter @aegis/ledger-service build && pnpm ledger:reconcile
       - name: Upload Playwright report on failure
         if: failure()
         uses: actions/upload-artifact@v7
@@ -119,7 +134,7 @@ jobs:
           path: apps/web/.playwright-report/results.xml
           if-no-files-found: ignore
           retention-days: 7
-      - name: Stop infrastructure
+      - name: Stop application services and infrastructure
         if: always()
         continue-on-error: true
         run: pnpm infra:down
@@ -140,7 +155,7 @@ jobs:
           cache: pnpm
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      - name: Generate Identity Prisma Client
+      - name: Generate Identity and Ledger Prisma Clients
         run: pnpm db:generate
       - name: Build
         run: pnpm build

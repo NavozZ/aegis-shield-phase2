@@ -6,6 +6,7 @@ node_modules/
 .yarn/unplugged/
 *.tsbuildinfo
 services/identity/src/generated/
+services/ledger/src/generated/
 
 # Next.js and NestJS
 .next/

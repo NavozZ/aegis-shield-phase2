@@ -19,6 +19,7 @@ const testPhones = [
   '+12025550124',
   '+12025550125',
   '+12025550126',
+  '+12025550127',
 ];
 const children = [];
 
@@ -59,8 +60,10 @@ function redact(text) {
   for (const name of [
     'POSTGRES_PASSWORD',
     'IDENTITY_DB_PASSWORD',
+    'LEDGER_DB_PASSWORD',
     'REDIS_PASSWORD',
     'IDENTITY_INTERNAL_TOKEN',
+    'LEDGER_INTERNAL_TOKEN',
     'FIELD_ENCRYPTION_KEY',
   ]) {
     const value = environment[name];
@@ -169,6 +172,50 @@ async function stopChildren() {
   }
 }
 
+/**
+ * Removes the ledger records belonging to the synthetic browser-test customers.
+ *
+ * Posted journals and postings are append-only by design and are never deleted;
+ * the browser journey creates accounts only, so their ledger accounts and
+ * balance projections can be removed safely.
+ */
+async function cleanLedgerTestData(customerIds) {
+  if (customerIds.length === 0) return;
+  const pool = new pg.Pool({
+    connectionString: environment.LEDGER_DATABASE_URL,
+  });
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows } = await client.query(
+      'SELECT ledger_account_id FROM app.customer_accounts WHERE customer_id = ANY($1::uuid[])',
+      [customerIds],
+    );
+    await client.query(
+      'DELETE FROM app.customer_accounts WHERE customer_id = ANY($1::uuid[])',
+      [customerIds],
+    );
+    if (rows.length > 0) {
+      await client.query(
+        `DELETE FROM app.ledger_accounts
+         WHERE id = ANY($1::uuid[])
+           AND NOT EXISTS (
+             SELECT 1 FROM app.journal_postings
+             WHERE journal_postings.ledger_account_id = ledger_accounts.id
+           )`,
+        [rows.map((row) => row.ledger_account_id)],
+      );
+    }
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+    await pool.end();
+  }
+}
+
 async function cleanTestData() {
   if (environment.NODE_ENV !== 'test')
     throw new Error('Scoped cleanup requires NODE_ENV=test.');
@@ -180,7 +227,13 @@ async function cleanTestData() {
     connectionString: environment.IDENTITY_DATABASE_URL,
   });
   const client = await pool.connect();
+  let testCustomerIds = [];
   try {
+    const { rows } = await client.query(
+      'SELECT id FROM app.users WHERE phone_e164 = ANY($1::text[])',
+      [testPhones],
+    );
+    testCustomerIds = rows.map((row) => row.id);
     await client.query('BEGIN');
     await client.query(
       'DELETE FROM app.auth_events WHERE masked_actor = ANY($1::text[]) OR user_id IN (SELECT id FROM app.users WHERE phone_e164 = ANY($2::text[]))',
@@ -198,6 +251,7 @@ async function cleanTestData() {
     client.release();
     await pool.end();
   }
+  await cleanLedgerTestData(testCustomerIds);
   const redis = createClient({ url: environment.REDIS_URL });
   await redis.connect();
   for await (const keys of redis.scanIterator({
@@ -215,16 +269,18 @@ function captureFailure(error) {
     : error;
 }
 try {
-  for (const port of [3000, 4000, 4101])
+  for (const port of [3000, 4000, 4101, 4102])
     if (await portIsOpen(port))
       throw new Error(`Required test port ${port} is already in use.`);
   process.stderr.write(`[web-e2e] preparing ${mode} stack\n`);
   await runPnpm(['infra:up']);
   await runPnpm(['infra:check']);
   await runPnpm(['db:deploy:identity']);
+  await runPnpm(['db:deploy:ledger']);
   await cleanTestData();
   await runPnpm(['--filter', '@aegis/contracts', 'build']);
   await runPnpm(['--filter', '@aegis/identity-service', 'build']);
+  await runPnpm(['--filter', '@aegis/ledger-service', 'build']);
   await runPnpm(['--filter', '@aegis/api-gateway', 'build']);
   await runPnpm(['--filter', '@aegis/web', 'build'], {
     env: { ...environment, NODE_ENV: 'production' },
@@ -235,6 +291,12 @@ try {
     resolve(repositoryRoot, 'services', 'identity'),
   );
   await waitFor('http://127.0.0.1:4101/health/live', identity, 'Identity');
+  const ledger = start(
+    'Ledger',
+    resolve(repositoryRoot, 'services', 'ledger', 'dist', 'main.js'),
+    resolve(repositoryRoot, 'services', 'ledger'),
+  );
+  await waitFor('http://127.0.0.1:4102/health', ledger, 'Ledger');
   const gateway = start(
     'Gateway',
     resolve(repositoryRoot, 'apps', 'api-gateway', 'dist', 'main.js'),
@@ -271,7 +333,7 @@ try {
   await runPnpm(['infra:down']).catch((error) => {
     captureFailure(error);
   });
-  for (const port of [3000, 4000, 4101])
+  for (const port of [3000, 4000, 4101, 4102])
     if (await portIsOpen(port))
       captureFailure(
         new Error(`Port ${port} remained in use after browser cleanup.`),

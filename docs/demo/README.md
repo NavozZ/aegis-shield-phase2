@@ -6,6 +6,10 @@ This directory will contain repeatable demonstration scripts and expected eviden
 
 To be completed during implementation. Demonstrate customer authentication, token lifecycle, authorization, safe failure messages, and relevant audit evidence.
 
+## Accounts and ledger
+
+Implemented in Prompt 05. See [accounts-ledger-demo.md](accounts-ledger-demo.md). Demonstrates idempotent Tier-0 account provisioning, a zero opening balance, ownership isolation, and a passing ledger reconciliation.
+
 ## Protected transfer
 
 To be completed during implementation. Demonstrate an authorized idempotent transfer, balanced ledger entries, replay handling, and a consistent customer result.
