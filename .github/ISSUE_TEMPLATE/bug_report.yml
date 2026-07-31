@@ -1,8 +1,8 @@
 name: Bug report
 description: Report a reproducible defect in AEGIS Shield
-title: "[Bug]: "
+title: '[Bug]: '
 labels:
-  - "type:bug"
+  - 'type:bug'
 body:
   - type: markdown
     attributes:

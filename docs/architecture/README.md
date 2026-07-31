@@ -1,35 +1,60 @@
 # Architecture Documentation
 
-This directory will hold the current architectural model for AEGIS Shield. Diagrams should identify trust boundaries, data ownership, security controls, and important failure behavior. Update this document and the relevant ADR whenever an implementation decision changes the model.
+This document describes the currently implemented Prompt 01 boundaries and reserves the flows that later milestones must define. Architecture changes must preserve explicit trust boundaries, data ownership, and bounded failure behavior.
 
-## Context diagram
+## Current monorepo boundaries
 
-To be completed during implementation. It will show customers, agents, administrators, external dependencies, banking channels, and the AEGIS Shield trust boundary.
+```text
+apps/       Independently runnable user-facing and gateway applications
+services/   Reserved independently deployable banking and security services
+packages/   Reserved shared contracts, configuration, security, UI, and test utilities
+infra/      Reserved local orchestration, observability, deployment, and recovery assets
+docs/       Architecture, decisions, and demonstration procedures
+```
 
-## Container diagram
+pnpm provides one workspace and root lockfile. Turborepo coordinates tasks without changing application ownership.
 
-To be completed during implementation. It will show user-facing applications, gateway, independent services, service-owned data stores, messaging, and observability components.
+## Web application responsibility
 
-## Service responsibilities
+`apps/web` is the Next.js customer experience boundary. It currently renders only the responsive AEGIS Shield foundation page. It owns presentation, accessibility, and later customer-channel composition; it must not own ledger state, authentication policy, or authoritative banking records.
 
-To be completed during implementation. It will define each service's capabilities, public and internal interfaces, dependencies, and prohibited responsibilities.
+## API gateway responsibility
 
-## Data ownership
+`apps/api-gateway` is the NestJS HTTP entry point. It currently exposes only `GET /health`, validates its listening port, accepts the local web origin through CORS, applies a secure global validation pipe, and enables graceful shutdown hooks.
 
-To be completed during implementation. It will map authoritative records to their owning service and document replication, event, retention, and reconciliation boundaries.
+Later milestones may add authentication enforcement and request routing. The gateway must not become the owner of banking data or domain logic.
 
-## Authentication flow
+## Future independent service boundaries
 
-To be completed during implementation. It will cover customer authentication, workload identity, token validation, authorization, revocation, and audit evidence.
+- identity
+- accounts-ledger
+- payments
+- threat-detection
+- sabcl-proxy
+- notifications
+- recovery
 
-## Transfer flow
+Each stateful service will own its data store and publish explicit contracts. Shared packages may contain schemas and utilities, but never direct cross-service database access.
 
-To be completed during implementation. It will cover idempotency, double-entry posting, consistency boundaries, failure states, and customer-visible outcomes.
+## Current request-flow placeholder
 
-## SABCL flow
+```text
+browser → web → API gateway → future services
+```
 
-To be completed during implementation. It will compare baseline and SABCL-protected communication and identify metadata, cryptographic, routing, and observability boundaries.
+Only the browser-to-web foundation page and direct API health request are implemented. Application-to-gateway business requests and all gateway-to-service calls are placeholders.
 
-## Failure and recovery flow
+## Deferred infrastructure
 
-To be completed during implementation. It will show detection, isolation, failover, restore, reconciliation, tamper-evidence verification, and safe return to service.
+Databases, Redis, queues, service messaging, containers, deployment manifests, workload identity, and observability backends are intentionally deferred. No implementation should infer that a placeholder flow has persistence or delivery guarantees.
+
+## Future diagrams and flows
+
+The following remain to be completed as their implementations are introduced:
+
+- context and container diagrams
+- service responsibilities and data ownership
+- customer and workload authentication flow
+- idempotent transfer and double-entry posting flow
+- SABCL-protected communication flow
+- failure isolation, reconciliation, and recovery flow

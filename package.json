@@ -1,0 +1,30 @@
+{
+  "name": "aegis-shield-phase2",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AEGIS Shield — a zero-trust, resilient, and inclusive digital banking platform with SABCL metadata protection.",
+  "packageManager": "pnpm@11.8.0",
+  "engines": {
+    "node": ">=20.9"
+  },
+  "workspaces": [
+    "apps/*",
+    "services/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "turbo run dev --parallel",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "clean": "turbo run clean && rimraf .turbo"
+  },
+  "devDependencies": {
+    "prettier": "3.9.6",
+    "rimraf": "6.1.3",
+    "turbo": "2.10.7"
+  }
+}

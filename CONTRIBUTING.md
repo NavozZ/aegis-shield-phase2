@@ -1,12 +1,12 @@
 # Contributing to AEGIS Shield
 
-Thank you for helping build AEGIS Shield. Contributions must preserve the platform's service boundaries, financial correctness, security model, and reproducible demonstration goals.
+Thank you for helping build AEGIS Shield. NavozZ is currently the active developer. Contributions must preserve the platform's service boundaries, financial correctness, security model, and reproducible demonstration goals.
 
 ## GitHub Flow
 
-`main` is the only long-lived branch and must remain reviewable and releasable. Direct pushes to `main` are not permitted. Start every change from an up-to-date `main`, work on a short-lived branch, and merge through a reviewed pull request.
+`main` is the only long-lived branch and must remain reviewable and releasable. No direct development commits may be made to `main`. Start every change from an up-to-date `main`, work on a short-lived branch, and merge through a pull request.
 
-One implementation prompt equals one branch and one pull request. Do not combine unrelated prompts or opportunistic refactors.
+Every implementation prompt uses one short-lived branch and one pull request. Do not combine unrelated prompts or opportunistic refactors.
 
 ## Branch naming
 
@@ -42,10 +42,10 @@ Keep commits focused. Never amend or rewrite another contributor's published wor
 4. Run all required local checks.
 5. Push the branch and open a pull request using the repository template.
 6. Address review findings with new commits.
-7. Obtain required approvals and passing checks.
+7. Obtain passing required checks and any review requested for the change.
 8. Squash-merge the pull request; do not create additional long-lived branches.
 
-The pull request must explain architecture and security impacts, testing evidence, and rollback considerations. Draft pull requests are encouraged for early design feedback.
+The pull request preserves review history and scope traceability even during solo development. Reviewer approval is not mandatory while NavozZ is the only active developer, but self-review and passing required checks remain mandatory. The pull request must explain architecture and security impacts, testing evidence, and rollback considerations. Accepted pull requests must use squash merging. Draft pull requests are encouraged for early design feedback.
 
 ## Required local checks
 
