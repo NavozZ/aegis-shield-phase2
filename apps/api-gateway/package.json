@@ -19,6 +19,7 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "pnpm --filter @aegis/identity-service build && node --experimental-vm-modules ./node_modules/jest/bin/jest.js --config ./test/jest-e2e.json --runInBand",
     "test:e2e:accounts": "pnpm --filter @aegis/identity-service build && pnpm --filter @aegis/ledger-service build && node --experimental-vm-modules ./node_modules/jest/bin/jest.js --config ./test/jest-e2e-accounts.json --runInBand",
+    "test:e2e:transfers": "pnpm --filter @aegis/identity-service build && pnpm --filter @aegis/ledger-service build && pnpm --filter @aegis/payments-service build && node --experimental-vm-modules ./node_modules/jest/bin/jest.js --config ./test/jest-e2e-transfers.json --runInBand",
     "clean": "node -e \"const fs = require('node:fs'); for (const path of ['dist', 'coverage', 'tsconfig.tsbuildinfo']) fs.rmSync(path, { recursive: true, force: true })\""
   },
   "dependencies": {

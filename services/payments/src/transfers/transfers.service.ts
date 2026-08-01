@@ -223,12 +223,20 @@ export class TransfersService {
       where: {
         tokenHash: sha256(token),
         senderCustomerId,
-        consumedAt: null,
-        expiresAt: { gt: new Date() },
       },
-      select: { id: true },
+      select: { id: true, consumedAt: true, expiresAt: true },
     });
     if (!intent) throw new PaymentsError('INTENT_EXPIRED');
+    if (intent.consumedAt) {
+      const replay = await this.prisma.client.transfer.findFirst({
+        where: { intentId: intent.id, senderCustomerId },
+        select: { id: true },
+      });
+      if (replay) return;
+      throw new PaymentsError('INTENT_EXPIRED');
+    }
+    if (intent.expiresAt <= new Date())
+      throw new PaymentsError('INTENT_EXPIRED');
     await this.prisma.client.transferIntent.update({
       where: { id: intent.id },
       data: { authorizedAt: new Date() },

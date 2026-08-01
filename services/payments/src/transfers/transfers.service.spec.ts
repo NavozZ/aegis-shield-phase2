@@ -197,7 +197,9 @@ function build(
     transfer: {
       update: jest.fn(applyTransferUpdate),
       findMany: transferFindMany,
-      findFirst: jest.fn(() => Promise.resolve(null)),
+      findFirst: jest.fn<Promise<ReturnType<typeof row> | null>, [unknown?]>(
+        () => Promise.resolve(null),
+      ),
     },
   };
   const preview = jest.fn(() =>
@@ -287,6 +289,15 @@ describe('TransfersService', () => {
     ).rejects.toMatchObject({
       code: 'INTENT_EXPIRED',
     });
+  });
+
+  it('allows step-up authorization to replay an already-created transfer', async () => {
+    const harness = build({ storedIntent: intent({ consumedAt: new Date() }) });
+    harness.client.transfer.findFirst.mockResolvedValueOnce(row());
+    await expect(
+      harness.service.authorize(senderId, token),
+    ).resolves.toBeUndefined();
+    expect(harness.client.transferIntent.update).not.toHaveBeenCalled();
   });
 
   it('creates PROCESSING then transitions to COMPLETED with safe public data', async () => {
