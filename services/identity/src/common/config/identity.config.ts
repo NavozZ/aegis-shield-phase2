@@ -23,6 +23,8 @@ export interface IdentityConfig {
   webauthnRpId: string;
   webauthnOrigin: string;
   fieldEncryptionKey: string;
+  transferStepUpMaxAttempts: number;
+  transferStepUpLockSeconds: number;
 }
 
 export const IDENTITY_CONFIG = Symbol('IDENTITY_CONFIG');
@@ -118,6 +120,14 @@ export function createIdentityConfig(): IdentityConfig {
     fieldEncryptionKey:
       process.env.FIELD_ENCRYPTION_KEY?.trim() ||
       'BASE64_LOCAL_ONLY_32_BYTE_KEY_PLACEHOLDER',
+    transferStepUpMaxAttempts: integerSetting(
+      'TRANSFER_STEP_UP_MAX_ATTEMPTS',
+      5,
+    ),
+    transferStepUpLockSeconds: integerSetting(
+      'TRANSFER_STEP_UP_LOCK_SECONDS',
+      300,
+    ),
   };
 
   if (config.sessionAbsoluteTtlSeconds < config.sessionIdleTtlSeconds) {

@@ -3,12 +3,18 @@ import { HealthController } from './health.controller';
 describe('HealthController', () => {
   const identity = { ready: jest.fn().mockResolvedValue(true) };
   const ledger = { ready: jest.fn().mockResolvedValue(true) };
-  const controller = new HealthController(identity as never, ledger as never);
+  const payments = { ready: jest.fn().mockResolvedValue(true) };
+  const controller = new HealthController(
+    identity as never,
+    ledger as never,
+    payments as never,
+  );
   const originalNodeEnvironment = process.env.NODE_ENV;
 
   beforeEach(() => {
     identity.ready.mockResolvedValue(true);
     ledger.ready.mockResolvedValue(true);
+    payments.ready.mockResolvedValue(true);
   });
 
   afterEach(() => {
@@ -37,10 +43,10 @@ describe('HealthController', () => {
     expect(controller.getHealth().environment).toBe('development');
   });
 
-  it('reports readiness when Identity and Ledger are both ready', async () => {
+  it('reports readiness when all dependencies are ready', async () => {
     await expect(controller.getReadiness()).resolves.toEqual({
       status: 'ready',
-      dependencies: { identity: 'up', ledger: 'up' },
+      dependencies: { identity: 'up', ledger: 'up', payments: 'up' },
     });
   });
 
@@ -53,6 +59,13 @@ describe('HealthController', () => {
 
   it('fails readiness when the Ledger is unavailable', async () => {
     ledger.ready.mockResolvedValue(false);
+    await expect(controller.getReadiness()).rejects.toMatchObject({
+      status: 503,
+    });
+  });
+
+  it('fails readiness when Payments is unavailable', async () => {
+    payments.ready.mockResolvedValue(false);
     await expect(controller.getReadiness()).rejects.toMatchObject({
       status: 503,
     });

@@ -9,6 +9,7 @@ import { HealthModule } from './health/health.module';
 import { JournalModule } from './ledger/journal.module';
 import { ReconciliationModule } from './reconciliation/reconciliation.module';
 import { TransactionModule } from './transactions/transaction.module';
+import { CustomerTransferModule } from './transfers/customer-transfer.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { TransactionModule } from './transactions/transaction.module';
     JournalModule,
     ReconciliationModule,
     TransactionModule,
+    CustomerTransferModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: InternalTokenGuard }],
 })

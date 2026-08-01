@@ -60,6 +60,7 @@ export function AuthenticatedShell({
         <AegisBrand compact />
         <nav aria-label={dictionary.workspace}>
           <Link href="/app">{dictionary.workspace}</Link>
+          <Link href="/app/transfers">Transfers</Link>
           <Link href="/app/security">{dictionary.securitySettings}</Link>
         </nav>
         <div className="header-actions">

@@ -65,6 +65,7 @@ export const journalEntryTypeSchema = z.enum([
   'ACCOUNT_ADJUSTMENT',
   'SETTLEMENT_FUNDING',
   'INTERNAL_TEST',
+  'CUSTOMER_TRANSFER',
 ]);
 export type JournalEntryType = z.infer<typeof journalEntryTypeSchema>;
 
@@ -194,7 +195,10 @@ export const accountBalanceSchema = z
 export type AccountBalance = z.infer<typeof accountBalanceSchema>;
 
 export const customerAccountDetailSchema = customerAccountSummarySchema
-  .extend({ balance: moneySchema })
+  .extend({
+    balance: moneySchema,
+    receivingReference: publicAccountReferenceSchema,
+  })
   .strict();
 export type CustomerAccountDetail = z.infer<typeof customerAccountDetailSchema>;
 
@@ -217,6 +221,7 @@ export type CustomerTransactionDirection = z.infer<
 export const customerTransactionCategorySchema = z.enum([
   'FUNDING',
   'ADJUSTMENT',
+  'TRANSFER',
   'OTHER',
 ]);
 export type CustomerTransactionCategory = z.infer<

@@ -19,6 +19,7 @@ const account: CustomerAccountDetail = {
   currency: 'LKR',
   createdAt: '2026-07-31T10:00:00.000Z',
   balance: { currency: 'LKR', minorUnits: '0' },
+  receivingReference: 'AEGIS-ABCD-EFGH-IJKL',
 };
 
 function jsonResponse(body: unknown, status = 200) {
@@ -197,9 +198,7 @@ describe('account panel with an account', () => {
     expect(screen.getByText('Active')).toBeInTheDocument();
     expect(screen.getByText('LKR')).toBeInTheDocument();
     expect(screen.getByText('LKR 0.00')).toBeInTheDocument();
-    expect(
-      screen.getByText('Transfers coming in Prompt 07'),
-    ).toBeInTheDocument();
+    expect(screen.getByText('Receive money')).toBeInTheDocument();
   });
 
   it('formats a balance beyond safe integer precision exactly', () => {
@@ -215,13 +214,13 @@ describe('account panel with an account', () => {
     expect(screen.getByText('LKR 90,071,992,547,409.93')).toBeInTheDocument();
   });
 
-  it('never renders the full account reference or an internal identifier', () => {
+  it("renders the owner's receiving reference but never an internal identifier", () => {
     const { container } = renderWithLanguage(
       <AccountPanel initialAccount={account} />,
     );
 
     expect(container.textContent).not.toContain(account.id);
-    expect(container.textContent).not.toMatch(/AEGIS-[A-Z0-9]{4}-[A-Z0-9]{4}/u);
+    expect(container.textContent).toContain(account.receivingReference);
   });
 
   it('offers no creation button once an account exists', () => {
@@ -272,9 +271,7 @@ describe('account panel translations', () => {
       expect(
         screen.getByText(dictionaries[language].accountBalance),
       ).toBeInTheDocument();
-      expect(
-        screen.getByText(dictionaries[language].transfersPrompt07),
-      ).toBeInTheDocument();
+      expect(screen.getByText('Receive money')).toBeInTheDocument();
       // The formatted amount is locale-independent in this prototype.
       expect(screen.getByText('LKR 0.00')).toBeInTheDocument();
     },

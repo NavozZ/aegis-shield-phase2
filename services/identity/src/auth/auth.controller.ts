@@ -5,6 +5,7 @@ import {
   pinFallbackLoginSchema,
   pinFallbackRequestSchema,
   requestOtpSchema,
+  pinStepUpRequestSchema,
   verifyOtpSchema,
 } from '@aegis/contracts';
 import {
@@ -25,6 +26,7 @@ import { FallbackService } from './fallback/fallback.service';
 import { OnboardingService } from './onboarding/onboarding.service';
 import { PasskeyService } from './passkeys/passkey.service';
 import { SessionService } from './sessions/session.service';
+import { TransferStepUpService } from './step-up/transfer-step-up.service';
 
 @Controller('api/v1/auth')
 export class AuthController {
@@ -33,6 +35,7 @@ export class AuthController {
     private readonly fallback: FallbackService,
     private readonly sessions: SessionService,
     private readonly passkeys: PasskeyService,
+    private readonly stepUp: TransferStepUpService,
   ) {}
 
   private requestContext(request: RequestContext) {
@@ -104,6 +107,19 @@ export class AuthController {
   @Get('session')
   getSession(@Headers('x-aegis-session-id') sessionId?: string) {
     return this.sessions.get(this.requiredHeader(sessionId, 'UNAUTHENTICATED'));
+  }
+
+  @Post('transfer-step-up')
+  stepUpTransfer(
+    @Body() body: unknown,
+    @Req() request: RequestContext,
+    @Headers('x-aegis-session-id') sessionId?: string,
+  ) {
+    return this.stepUp.verify(
+      this.requiredHeader(sessionId, 'UNAUTHENTICATED'),
+      parseInput(pinStepUpRequestSchema, body).pin,
+      this.requestContext(request),
+    );
   }
 
   @Post('logout')

@@ -19,7 +19,6 @@ export default async function WorkspacePage() {
       ? await getServerTransactions(accountState.account.id, '?pageSize=5')
       : undefined;
   const cards = [
-    [dictionary.transfersCard, dictionary.comingLater],
     [dictionary.qrCard, dictionary.comingLater],
     [dictionary.recoveryCard, dictionary.comingLater],
   ];
@@ -61,6 +60,11 @@ export default async function WorkspacePage() {
         </p>
       </section>
       <section className="feature-grid" aria-label={dictionary.workspace}>
+        <Link className="feature-card" href="/app/transfers">
+          <span aria-hidden="true">↔</span>
+          <h2>{dictionary.transfersCard}</h2>
+          <p>Send or receive secure customer transfers.</p>
+        </Link>
         {cards.map(([title, status]) => (
           <EmptyFeatureCard key={title} title={title} status={status} />
         ))}

@@ -2,6 +2,7 @@
 
 import { formatMoney, type CustomerAccountDetail } from '@aegis/contracts';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useRef, useState } from 'react';
 import { authErrorMessage } from '@/hooks/use-auth-message';
 import {
@@ -14,6 +15,7 @@ import {
   LoadingButton,
   SecurityNotice,
 } from '../ui/feedback';
+import { ReceivingReference } from '../transfers/receiving-reference';
 
 export function AccountPanel({
   initialAccount,
@@ -95,7 +97,13 @@ export function AccountPanel({
               </dd>
             </div>
           </dl>
-          <p className="account-next">{dictionary.transfersPrompt07}</p>
+          <ReceivingReference reference={account.receivingReference} />
+          <Link
+            className="button button-primary"
+            href={`/app/transfers/new?sourceAccountId=${encodeURIComponent(account.id)}`}
+          >
+            Send from this account
+          </Link>
         </>
       ) : (
         <>

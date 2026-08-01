@@ -13,6 +13,7 @@ import { PasskeyService } from './passkeys/passkey.service';
 import { WebAuthnAdapter } from './passkeys/webauthn.adapter';
 import { PinService } from './pin/pin.service';
 import { SessionService } from './sessions/session.service';
+import { TransferStepUpService } from './step-up/transfer-step-up.service';
 
 @Module({
   controllers: [AuthController],
@@ -28,6 +29,7 @@ import { SessionService } from './sessions/session.service';
     FallbackService,
     WebAuthnAdapter,
     PasskeyService,
+    TransferStepUpService,
   ],
 })
 export class AuthModule {}

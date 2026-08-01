@@ -25,6 +25,7 @@ import {
 
 interface AccountRow {
   id: string;
+  publicReference: string;
   maskedReference: string;
   productType: 'TIER0_WALLET';
   status: 'ACTIVE' | 'FROZEN' | 'CLOSED';
@@ -42,6 +43,7 @@ interface AccountRow {
 
 const ACCOUNT_SELECTION = {
   id: true,
+  publicReference: true,
   maskedReference: true,
   productType: true,
   status: true,
@@ -103,6 +105,7 @@ export class AccountService {
         currency: row.currency,
         minorUnits: serializeMinorUnits(this.balanceMinor(row)),
       },
+      receivingReference: row.publicReference,
     };
   }
 
