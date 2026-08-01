@@ -25,7 +25,6 @@ export class UssdService {
 
     const redisKey = this.redis.key('ussd', sessionId);
     const storedState = await this.redis.get(redisKey);
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const state: {
       state: string;
       msisdn: string;
@@ -35,7 +34,15 @@ export class UssdService {
       amountMinor?: string;
       message?: string;
     } = storedState
-      ? JSON.parse(storedState)
+      ? (JSON.parse(storedState) as {
+          state: string;
+          msisdn: string;
+          customerId: string;
+          recipientReference?: string;
+          recipientAccountId?: string;
+          amountMinor?: string;
+          message?: string;
+        })
       : { state: 'WELCOME', msisdn, customerId: activeCustomerId };
     let message = '';
     let end = false;
@@ -85,7 +92,9 @@ export class UssdService {
             message = 'Invalid amount. Enter amount in LKR:';
             break;
           }
-          state.amountMinor = Math.floor(parseFloat(userInput) * 100).toString();
+          state.amountMinor = Math.floor(
+            parseFloat(userInput) * 100,
+          ).toString();
           message = `Send ${userInput} LKR to ${state.recipientReference}?\n1. Confirm\n2. Cancel`;
           state.state = 'SEND_MONEY_CONFIRM';
           break;

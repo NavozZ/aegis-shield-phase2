@@ -1,8 +1,6 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/require-await, @typescript-eslint/no-unused-vars, prettier/prettier */
 import { HttpStatus } from '@nestjs/common';
 import { Test, type TestingModule } from '@nestjs/testing';
 import { PAYMENTS_CONFIG } from '../common/config/payments.config';
-import { PaymentsError } from '../common/errors/payments.error';
 import { PrismaService } from '../database/prisma.service';
 import { LedgerCallError, LedgerClient } from '../transfers/ledger.client';
 import { QrService } from './qr.service';
@@ -10,15 +8,12 @@ import {
   decodeQrPayload,
   encodeQrPayload,
   generateQrNonce,
-  sha256,
   signQrPayload,
   QR_PROTOCOL_VERSION,
 } from './qr-crypto';
 
 describe('QrService', () => {
   let service: QrService;
-  let prisma: PrismaService;
-  let ledger: LedgerClient;
 
   const mockConfig = {
     qrSigningKey: 'test-signing-key-12345',
@@ -26,7 +21,7 @@ describe('QrService', () => {
     qrStaticTtlHours: 8760,
   };
 
-  const mockPrisma: any = {
+  const mockPrisma = {
     client: {
       qrPaymentRequest: {
         create: jest.fn(),
@@ -42,11 +37,12 @@ describe('QrService', () => {
       qrPaymentEvent: {
         create: jest.fn(),
       },
-      $transaction: async (fn: any): Promise<any> => fn(mockPrisma.client),
+      $transaction: (fn: (client: unknown) => Promise<unknown>) =>
+        fn(mockPrisma.client),
     },
   };
 
-  const mockLedger: any = {
+  const mockLedger = {
     transfer: jest.fn(),
     getAccountDetail: jest.fn().mockResolvedValue({
       accountId: 'acc-1',
@@ -65,8 +61,6 @@ describe('QrService', () => {
     }).compile();
 
     service = module.get<QrService>(QrService);
-    prisma = module.get<PrismaService>(PrismaService);
-    ledger = module.get<LedgerClient>(LedgerClient);
   });
 
   afterEach(() => {

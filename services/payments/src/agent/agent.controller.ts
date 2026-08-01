@@ -78,7 +78,7 @@ export class AgentController {
   }
 
   @Get('agent/:agentReference/limits')
-  async limits(@Param('agentReference') agentReference: string) {
+  limits(@Param('agentReference') agentReference: string) {
     return this.agentService.limits(agentReference);
   }
 }

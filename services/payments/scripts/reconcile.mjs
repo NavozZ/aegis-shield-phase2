@@ -24,7 +24,9 @@ try {
   process.exitCode = result.status === 'PASS' ? 0 : 1;
 } catch (e) {
   process.stderr.write(
-    'Payments reconciliation could not complete. Build the service and verify PostgreSQL.\n' + e.stack + '\n',
+    'Payments reconciliation could not complete. Build the service and verify PostgreSQL.\n' +
+      e.stack +
+      '\n',
   );
   process.exitCode = 1;
 }

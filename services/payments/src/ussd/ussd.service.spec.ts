@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/require-await, @typescript-eslint/no-unused-vars, prettier/prettier */
 import { Test, TestingModule } from '@nestjs/testing';
 import { UssdService } from './ussd.service';
 import { PrismaService } from '../database/prisma.service';
@@ -47,11 +46,22 @@ describe('UssdService', () => {
     const correlationId = 'corr-1';
 
     const redisMap = new Map<string, string>();
-    const redis = service['redis'] as any;
-    redis.key.mockImplementation((prefix: string, id: string) => `${prefix}:${id}`);
+    const redis = service['redis'] as unknown as {
+      key: jest.Mock;
+      get: jest.Mock;
+      set: jest.Mock;
+      delete: jest.Mock;
+    };
+    redis.key.mockImplementation(
+      (prefix: string, id: string) => `${prefix}:${id}`,
+    );
     redis.get.mockImplementation((key: string) => redisMap.get(key) || null);
-    redis.set.mockImplementation((key: string, val: string) => redisMap.set(key, val));
-    redis.delete.mockImplementation((key: string) => redisMap.delete(key));
+    redis.set.mockImplementation((key: string, val: string) => {
+      redisMap.set(key, val);
+    });
+    redis.delete.mockImplementation((key: string) => {
+      redisMap.delete(key);
+    });
 
     // 1. Welcome
     let res = await service.handleWebhook(
@@ -102,7 +112,7 @@ describe('UssdService', () => {
     expect(res.message).toContain('Transfer successful');
     expect(res.type).toBe('release');
 
-    const ledger = service['ledger'] as any;
+    const ledger = service['ledger'] as unknown as { transfer: jest.Mock };
     expect(ledger.transfer).toHaveBeenCalled();
   });
 });

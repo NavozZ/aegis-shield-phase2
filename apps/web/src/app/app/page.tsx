@@ -18,7 +18,7 @@ export default async function WorkspacePage() {
     accountState.status === 'ready' && accountState.account
       ? await getServerTransactions(accountState.account.id, '?pageSize=5')
       : undefined;
-  
+
   return (
     <div className="workspace-content">
       <div className="workspace-title">

@@ -1,4 +1,3 @@
-/* eslint-disable */
 import { HttpStatus, Inject, Injectable } from '@nestjs/common';
 import {
   PAYMENTS_CONFIG,
@@ -51,10 +50,7 @@ export class QrService {
         crypto.randomUUID(),
       );
     } catch (error) {
-      if (
-        error instanceof LedgerCallError &&
-        (error.status as unknown as number) === HttpStatus.NOT_FOUND
-      ) {
+      if (error instanceof LedgerCallError && error.status === 404) {
         throw new PaymentsError(
           'ACCOUNT_NOT_FOUND',
           'Account not found.',
@@ -396,14 +392,19 @@ export class QrService {
     });
 
     if (result.replayed) {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-      return this.formatRedemption(result.redemption as any);
+      return this.formatRedemption(
+        result.redemption as unknown as Parameters<
+          typeof this.formatRedemption
+        >[0],
+      );
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+    const settled = await this.settle(
+      result.redemption as unknown as Parameters<typeof this.settle>[0],
+      correlationId,
+    );
     return this.formatRedemption(
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-      (await this.settle(result.redemption as any, correlationId)) as any,
+      settled as unknown as Parameters<typeof this.formatRedemption>[0],
     );
   }
 

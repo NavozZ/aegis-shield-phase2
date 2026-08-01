@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/require-await, @typescript-eslint/no-unused-vars, prettier/prettier, @typescript-eslint/no-unsafe-enum-comparison */
 import { HttpStatus, Inject, Injectable } from '@nestjs/common';
 import {
   PAYMENTS_CONFIG,
@@ -11,10 +10,7 @@ import { PrismaService } from '../database/prisma.service';
 import { LedgerClient, LedgerCallError } from '../transfers/ledger.client';
 
 export function sha256(value: string): string {
-  return crypto
-    .createHash('sha256')
-    .update(value, 'utf8')
-    .digest('hex');
+  return crypto.createHash('sha256').update(value, 'utf8').digest('hex');
 }
 
 @Injectable()
@@ -64,10 +60,7 @@ export class AgentService {
         correlationId,
       );
     } catch (error) {
-      if (
-        error instanceof LedgerCallError &&
-        error.status === HttpStatus.NOT_FOUND
-      ) {
+      if (error instanceof LedgerCallError && error.status === 404) {
         throw new PaymentsError(
           'ACCOUNT_NOT_FOUND',
           'Customer account not found.',
@@ -248,12 +241,13 @@ export class AgentService {
     });
 
     if (result.replayed || result.operation.status !== 'PROCESSING') {
-      return this.formatOperation(result.operation);
+      return this.formatOperation(
+        result.operation as Parameters<typeof this.formatOperation>[0],
+      );
     }
 
-    return this.formatOperation(
-      await this.settle(result.operation, correlationId),
-    );
+    const settled = await this.settle(result.operation, correlationId);
+    return this.formatOperation(settled);
   }
 
   async status(agentId: string, operationId: string) {
@@ -271,7 +265,7 @@ export class AgentService {
     return this.formatOperation(op);
   }
 
-  async limits(agentReference: string) {
+  limits(agentReference: string) {
     // Dummy limits for now, could be dynamic
     return {
       agentReference,
@@ -302,11 +296,6 @@ export class AgentService {
     try {
       // Create ledger channel operation logic handled via LedgerClient's custom method or transfer method
       // We will add `channel-operations` endpoint to Ledger
-      const path =
-        op.operationType === 'AGENT_CASH_IN'
-          ? '/internal/channel-operations/agent-cash-in'
-          : '/internal/channel-operations/agent-cash-out';
-
       const ledgerResult = await this.ledger.transfer(
         {
           transferId: op.id,
@@ -317,7 +306,7 @@ export class AgentService {
           amountMinor: op.amountMinor.toString(),
           currency: op.currency,
           idempotencyKey: `agent-cash:${op.id}`,
-        } as any,
+        },
         correlationId,
       );
       // NOTE: Ledger will actually need a real endpoint for this to route correctly and use correct journal types
@@ -364,7 +353,7 @@ export class AgentService {
 
         return updated;
       }
-      return op as any;
+      return op as unknown as Parameters<typeof this.formatOperation>[0];
     }
   }
 
@@ -394,10 +383,7 @@ export class AgentService {
   }
 
   private generateReference(): string {
-    const value = crypto
-      .randomBytes(12)
-      .toString('hex')
-      .toUpperCase();
+    const value = crypto.randomBytes(12).toString('hex').toUpperCase();
     return `AEGIS-AGT-${value.slice(0, 4)}-${value.slice(4, 8)}-${value.slice(8, 12)}`;
   }
 }

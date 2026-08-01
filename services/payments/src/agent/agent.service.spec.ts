@@ -1,16 +1,12 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/require-await, @typescript-eslint/no-unused-vars, prettier/prettier */
 import { HttpStatus } from '@nestjs/common';
 import { Test, type TestingModule } from '@nestjs/testing';
 import { PAYMENTS_CONFIG } from '../common/config/payments.config';
-import { PaymentsError } from '../common/errors/payments.error';
 import { PrismaService } from '../database/prisma.service';
 import { LedgerCallError, LedgerClient } from '../transfers/ledger.client';
 import { AgentService } from './agent.service';
 
 describe('AgentService', () => {
   let service: AgentService;
-  let prisma: PrismaService;
-  let ledger: LedgerClient;
 
   const mockConfig = {
     minTransferMinor: 100n,
@@ -19,7 +15,7 @@ describe('AgentService', () => {
     intentTtlSeconds: 300,
   };
 
-  const mockPrisma: any = {
+  const mockPrisma = {
     client: {
       agentCashOperation: {
         create: jest.fn(),
@@ -31,11 +27,12 @@ describe('AgentService', () => {
       agentCashEvent: {
         create: jest.fn(),
       },
-      $transaction: async (fn: any): Promise<any> => fn(mockPrisma.client),
+      $transaction: (fn: (client: unknown) => Promise<unknown>) =>
+        fn(mockPrisma.client),
     },
   };
 
-  const mockLedger: any = {
+  const mockLedger = {
     resolveAccountByReference: jest.fn(),
     transfer: jest.fn(),
   };
@@ -51,8 +48,6 @@ describe('AgentService', () => {
     }).compile();
 
     service = module.get<AgentService>(AgentService);
-    prisma = module.get<PrismaService>(PrismaService);
-    ledger = module.get<LedgerClient>(LedgerClient);
   });
 
   afterEach(() => {
