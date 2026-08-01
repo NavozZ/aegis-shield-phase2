@@ -8,7 +8,6 @@ import type {
 } from '@aegis/contracts';
 import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import { type ChildProcess, spawn } from 'node:child_process';
 import { config as loadEnvironment } from 'dotenv';
 import { randomUUID } from 'node:crypto';
 import { createServer } from 'node:net';
@@ -19,6 +18,12 @@ import request, { type Response as SupertestResponse } from 'supertest';
 import type { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
 import { configureApplication } from '../src/app.setup';
+import {
+  startService,
+  stopService,
+  waitForService,
+  type ManagedService,
+} from './service-process';
 
 function body<T>(response: SupertestResponse): T {
   return response.body as T;
@@ -50,28 +55,13 @@ async function port(): Promise<number> {
   );
   return address.port;
 }
-async function waitFor(url: string, child: ChildProcess, name: string) {
-  for (let attempt = 0; attempt < 240; attempt += 1) {
-    if (child.exitCode !== null)
-      throw new Error(`${name} exited during startup.`);
-    try {
-      if ((await fetch(url)).ok) return;
-    } catch {
-      /* listener is starting */
-    }
-    await new Promise((ok) => setTimeout(ok, 100));
-  }
-  throw new Error(`${name} did not become ready.`);
-}
-async function stop(child: ChildProcess | undefined) {
-  if (!child || child.exitCode !== null) return;
-  child.kill('SIGTERM');
-  await Promise.race([
-    new Promise((ok) => child.once('exit', ok)),
-    new Promise((ok) => setTimeout(ok, 3_000)),
-  ]);
-  if (child.exitCode === null) child.kill('SIGKILL');
-}
+/*
+ * Service startup uses the shared helper in ./service-process, which keeps a
+ * bounded window of each child's output and reports a sanitised tail when the
+ * process dies. Before that, a Nest dependency-resolution failure and a bad
+ * connection string both surfaced in CI as the single sentence
+ * "Payments exited during startup."
+ */
 
 jest.setTimeout(240_000);
 describe('Customer transfers through Gateway, Identity, Payments and Ledger (e2e)', () => {
@@ -81,26 +71,26 @@ describe('Customer transfers through Gateway, Identity, Payments and Ledger (e2e
   const recipientPhone = `+1302${suffix}`;
   const pin = '739182';
   const customerIds: string[] = [];
-  let identity: ChildProcess;
-  let ledger: ChildProcess;
-  let payments: ChildProcess;
+  let identity: ManagedService | undefined;
+  let ledger: ManagedService | undefined;
+  let payments: ManagedService | undefined;
   let gateway: INestApplication<App>;
   let root: string;
 
   function server() {
     return gateway.getHttpServer();
   }
-  function start(entry: string, cwd: string) {
-    return spawn(process.execPath, [resolve(root, entry)], {
+  function start(name: string, entry: string, cwd: string): ManagedService {
+    return startService({
+      name,
+      entry: resolve(root, entry),
       cwd: resolve(root, cwd),
-      env: process.env,
-      stdio: 'ignore',
-      windowsHide: true,
+      environment: process.env,
     });
   }
   async function startLedger() {
-    ledger = start('services/ledger/dist/main.js', 'services/ledger');
-    await waitFor(`${process.env.LEDGER_SERVICE_URL}/health`, ledger, 'Ledger');
+    ledger = start('Ledger', 'services/ledger/dist/main.js', 'services/ledger');
+    await waitForService(ledger, `${process.env.LEDGER_SERVICE_URL}/health`);
   }
   async function onboard(phone: string) {
     const accepted = body<OtpAcceptedResponse>(
@@ -242,18 +232,24 @@ describe('Customer transfers through Gateway, Identity, Payments and Ledger (e2e
     process.env.PAYMENTS_SERVICE_PORT = String(await port());
     process.env.PAYMENTS_SERVICE_URL = `http://127.0.0.1:${process.env.PAYMENTS_SERVICE_PORT}`;
     process.env.PAYMENTS_RECOVERY_STALE_SECONDS = '1';
-    identity = start('services/identity/dist/main.js', 'services/identity');
-    await waitFor(
-      `${process.env.IDENTITY_SERVICE_URL}/health/live`,
-      identity,
+    identity = start(
       'Identity',
+      'services/identity/dist/main.js',
+      'services/identity',
+    );
+    await waitForService(
+      identity,
+      `${process.env.IDENTITY_SERVICE_URL}/health/live`,
     );
     await startLedger();
-    payments = start('services/payments/dist/main.js', 'services/payments');
-    await waitFor(
-      `${process.env.PAYMENTS_SERVICE_URL}/health/live`,
-      payments,
+    payments = start(
       'Payments',
+      'services/payments/dist/main.js',
+      'services/payments',
+    );
+    await waitForService(
+      payments,
+      `${process.env.PAYMENTS_SERVICE_URL}/health/live`,
     );
     const module = await Test.createTestingModule({
       imports: [AppModule],
@@ -398,7 +394,9 @@ describe('Customer transfers through Gateway, Identity, Payments and Ledger (e2e
       recipientAccount.receivingReference,
       '1.00',
     );
-    await stop(ledger);
+    // Simulates a Ledger outage mid-transfer, so the confirmation is left
+    // PROCESSING and recovery has something real to resolve.
+    await stopService(ledger);
     const pending = await confirm(
       sender,
       pendingPreview.intentToken,
@@ -436,7 +434,9 @@ describe('Customer transfers through Gateway, Identity, Payments and Ledger (e2e
 
   afterAll(async () => {
     if (gateway) await gateway.close();
-    await Promise.all([identity, payments, ledger].map((child) => stop(child)));
+    await Promise.all(
+      [identity, payments, ledger].map((service) => stopService(service)),
+    );
     if (process.env.IDENTITY_REDIS_PREFIX && process.env.REDIS_URL) {
       const redis = createClient({ url: process.env.REDIS_URL });
       await redis.connect();
