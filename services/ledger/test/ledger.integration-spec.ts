@@ -9,6 +9,7 @@ import { IdempotencyService } from '../src/idempotency/idempotency.service';
 import { JournalService } from '../src/ledger/journal.service';
 import { ReconciliationService } from '../src/reconciliation/reconciliation.service';
 import { TransactionService } from '../src/transactions/transaction.service';
+import { CustomerTransferService } from '../src/transfers/customer-transfer.service';
 
 /**
  * Infrastructure-dependent tests. They require the PostgreSQL ledger database
@@ -23,6 +24,7 @@ describe('ledger integration', () => {
   let journals: JournalService;
   let reconciliation: ReconciliationService;
   let transactions: TransactionService;
+  let customerTransfers: CustomerTransferService;
   let settlementAccountId: string;
 
   const customerId = randomUUID();
@@ -114,6 +116,7 @@ describe('ledger integration', () => {
     journals = new JournalService(prisma, idempotency, config);
     reconciliation = new ReconciliationService(prisma);
     transactions = new TransactionService(prisma);
+    customerTransfers = new CustomerTransferService(prisma, journals);
 
     const [settlement] = await prisma.client.$queryRaw<Array<{ id: string }>>`
       SELECT "id" FROM "app"."ledger_accounts"
@@ -424,6 +427,360 @@ describe('ledger integration', () => {
           { type: 'SERVICE', id: 'integration-test' },
         ),
       ).rejects.toMatchObject({ code: 'CURRENCY_MISMATCH' });
+    });
+  });
+
+  describe('customer transfers', () => {
+    const senderCustomerId = randomUUID();
+    const recipientCustomerId = randomUUID();
+    let senderAccountId: string;
+    let recipientAccountId: string;
+    let senderLedgerAccountId: string;
+    let recipientLedgerAccountId: string;
+    let recipientReference: string;
+    let successfulJournalId: string;
+
+    async function provision(customer: string, suffix: string) {
+      return accounts.provisionDefault({
+        customerId: customer,
+        productType: 'TIER0_WALLET',
+        currency: 'LKR',
+        idempotencyKey: `transfer-provision-${runId}-${suffix}`,
+      });
+    }
+
+    async function fund(
+      ledgerAccountId: string,
+      amountMinor: string,
+      suffix: string,
+    ) {
+      return journals.post(
+        {
+          entryType: 'SETTLEMENT_FUNDING',
+          currency: 'LKR',
+          idempotencyKey: `transfer-fund-${runId}-${suffix}`,
+          reference: `JRN-${runId}-transfer-fund-${suffix}`,
+          postings: [
+            {
+              ledgerAccountId: settlementAccountId,
+              direction: 'DEBIT',
+              amountMinor,
+            },
+            {
+              ledgerAccountId,
+              direction: 'CREDIT',
+              amountMinor,
+            },
+          ],
+        },
+        randomUUID(),
+        { type: 'SERVICE', id: 'transfer-integration-test' },
+      );
+    }
+
+    function command(
+      overrides: Partial<{
+        transferId: string;
+        transferReference: string;
+        senderCustomerId: string;
+        sourceAccountId: string;
+        recipientReference: string;
+        amountMinor: string;
+        idempotencyKey: string;
+      }> = {},
+    ) {
+      const transferId = overrides.transferId ?? randomUUID();
+      return {
+        transferId,
+        transferReference:
+          overrides.transferReference ?? `AEGIS-TRF-${transferId.slice(0, 12)}`,
+        senderCustomerId: overrides.senderCustomerId ?? senderCustomerId,
+        sourceAccountId: overrides.sourceAccountId ?? senderAccountId,
+        recipientReference: overrides.recipientReference ?? recipientReference,
+        amountMinor: overrides.amountMinor ?? '1200',
+        currency: 'LKR' as const,
+        idempotencyKey: overrides.idempotencyKey ?? `transfer:${transferId}`,
+      };
+    }
+
+    beforeAll(async () => {
+      const sender = await provision(senderCustomerId, 'sender');
+      const recipient = await provision(recipientCustomerId, 'recipient');
+      senderAccountId = sender.account.id;
+      recipientAccountId = recipient.account.id;
+      recipientReference = recipient.account.receivingReference;
+      senderLedgerAccountId = await ledgerAccountIdFor(senderAccountId);
+      recipientLedgerAccountId = await ledgerAccountIdFor(recipientAccountId);
+      await fund(senderLedgerAccountId, '5000', 'sender');
+    });
+
+    it('posts one CUSTOMER_TRANSFER journal with one debit and one credit', async () => {
+      const transfer = command({
+        transferId: '70000000-0000-4000-8000-000000000001',
+        transferReference: `AEGIS-TRF-${runId}-SUCCESS`,
+        idempotencyKey: `transfer-${runId}-success`,
+      });
+      const result = await customerTransfers.transfer(transfer, randomUUID());
+      successfulJournalId = result.journalId;
+
+      expect(result.senderBalanceAfter.minorUnits).toBe('3800');
+      expect(result.recipientBalanceAfter.minorUnits).toBe('1200');
+      const entries = await prisma.client.$queryRaw<
+        Array<{ entry_type: string; posting_count: bigint }>
+      >`
+        SELECT entry."entry_type", COUNT(posting."id") AS posting_count
+        FROM "app"."journal_entries" AS entry
+        JOIN "app"."journal_postings" AS posting
+          ON posting."journal_entry_id" = entry."id"
+        WHERE entry."id" = ${result.journalId}::uuid
+        GROUP BY entry."entry_type"
+      `;
+      expect(entries).toEqual([
+        { entry_type: 'CUSTOMER_TRANSFER', posting_count: 2n },
+      ]);
+      const postings = await prisma.client.$queryRaw<
+        Array<{
+          ledger_account_id: string;
+          direction: string;
+          amount_minor: bigint;
+        }>
+      >`
+        SELECT "ledger_account_id", "direction", "amount_minor"
+        FROM "app"."journal_postings"
+        WHERE "journal_entry_id" = ${result.journalId}::uuid
+        ORDER BY "sequence"
+      `;
+      expect(postings).toEqual([
+        {
+          ledger_account_id: senderLedgerAccountId,
+          direction: 'DEBIT',
+          amount_minor: 1200n,
+        },
+        {
+          ledger_account_id: recipientLedgerAccountId,
+          direction: 'CREDIT',
+          amount_minor: 1200n,
+        },
+      ]);
+    });
+
+    it('replays a lost response without creating another journal', async () => {
+      const replay = command({
+        transferId: '70000000-0000-4000-8000-000000000001',
+        transferReference: `AEGIS-TRF-${runId}-SUCCESS`,
+        idempotencyKey: `transfer-${runId}-success`,
+      });
+      const result = await customerTransfers.transfer(replay, randomUUID());
+      expect(result.journalId).toBe(successfulJournalId);
+      const [row] = await prisma.client.$queryRaw<Array<{ total: bigint }>>`
+        SELECT COUNT(*) AS total FROM "app"."journal_entries"
+        WHERE "id" = ${successfulJournalId}::uuid
+      `;
+      expect(row?.total).toBe(1n);
+    });
+
+    it('rejects a changed payload under the same idempotency key', async () => {
+      await expect(
+        customerTransfers.transfer(
+          command({
+            transferId: '70000000-0000-4000-8000-000000000001',
+            transferReference: `AEGIS-TRF-${runId}-SUCCESS`,
+            idempotencyKey: `transfer-${runId}-success`,
+            amountMinor: '1201',
+          }),
+          randomUUID(),
+        ),
+      ).rejects.toMatchObject({ code: 'IDEMPOTENCY_CONFLICT' });
+    });
+
+    it('leaves both balances unchanged after insufficient funds', async () => {
+      const senderBefore = await projectionOf(senderLedgerAccountId);
+      const recipientBefore = await projectionOf(recipientLedgerAccountId);
+      await expect(
+        customerTransfers.transfer(
+          command({
+            amountMinor: '999999',
+            idempotencyKey: `transfer-${runId}-insufficient`,
+          }),
+          randomUUID(),
+        ),
+      ).rejects.toMatchObject({ code: 'INSUFFICIENT_FUNDS' });
+      expect(await projectionOf(senderLedgerAccountId)).toEqual(senderBefore);
+      expect(await projectionOf(recipientLedgerAccountId)).toEqual(
+        recipientBefore,
+      );
+    });
+
+    it('rejects self-transfer and wrong ownership without changing balances', async () => {
+      const sender = await accounts.getForCustomer(
+        senderCustomerId,
+        senderAccountId,
+      );
+      const before = await projectionOf(senderLedgerAccountId);
+      await expect(
+        customerTransfers.transfer(
+          command({ recipientReference: sender.receivingReference }),
+          randomUUID(),
+        ),
+      ).rejects.toMatchObject({ code: 'SELF_TRANSFER' });
+      await expect(
+        customerTransfers.transfer(
+          command({ senderCustomerId: randomUUID() }),
+          randomUUID(),
+        ),
+      ).rejects.toMatchObject({ code: 'ACCOUNT_NOT_FOUND' });
+      expect(await projectionOf(senderLedgerAccountId)).toEqual(before);
+    });
+
+    it('rejects inactive source and recipient accounts', async () => {
+      await prisma.client.customerAccount.update({
+        where: { id: senderAccountId },
+        data: { status: 'FROZEN' },
+      });
+      try {
+        await expect(
+          customerTransfers.transfer(command(), randomUUID()),
+        ).rejects.toMatchObject({ code: 'ACCOUNT_NOT_ACTIVE' });
+      } finally {
+        await prisma.client.customerAccount.update({
+          where: { id: senderAccountId },
+          data: { status: 'ACTIVE' },
+        });
+      }
+      await prisma.client.customerAccount.update({
+        where: { id: recipientAccountId },
+        data: { status: 'FROZEN' },
+      });
+      try {
+        await expect(
+          customerTransfers.transfer(command(), randomUUID()),
+        ).rejects.toMatchObject({ code: 'ACCOUNT_NOT_ACTIVE' });
+      } finally {
+        await prisma.client.customerAccount.update({
+          where: { id: recipientAccountId },
+          data: { status: 'ACTIVE' },
+        });
+      }
+    });
+
+    it('returns OUTGOING and INCOMING TRANSFER history without metadata', async () => {
+      const senderHistory = await transactions.list(
+        senderCustomerId,
+        senderAccountId,
+        { pageSize: 20, category: 'TRANSFER' },
+      );
+      const recipientHistory = await transactions.list(
+        recipientCustomerId,
+        recipientAccountId,
+        { pageSize: 20, category: 'TRANSFER' },
+      );
+      expect(senderHistory.transactions).toHaveLength(1);
+      expect(senderHistory.transactions[0]).toMatchObject({
+        direction: 'OUTGOING',
+        category: 'TRANSFER',
+        amount: { minorUnits: '1200' },
+      });
+      expect(recipientHistory.transactions).toHaveLength(1);
+      expect(recipientHistory.transactions[0]).toMatchObject({
+        direction: 'INCOMING',
+        category: 'TRANSFER',
+        amount: { minorUnits: '1200' },
+      });
+      expect(JSON.stringify([senderHistory, recipientHistory])).not.toMatch(
+        /metadata|ledgerAccountId|correlationId/iu,
+      );
+    });
+
+    it('prevents concurrent double-spend from one sender', async () => {
+      const raceSenderCustomer = randomUUID();
+      const raceRecipientOneCustomer = randomUUID();
+      const raceRecipientTwoCustomer = randomUUID();
+      const raceSender = await provision(raceSenderCustomer, 'race-sender');
+      const raceRecipientOne = await provision(
+        raceRecipientOneCustomer,
+        'race-recipient-one',
+      );
+      const raceRecipientTwo = await provision(
+        raceRecipientTwoCustomer,
+        'race-recipient-two',
+      );
+      const raceLedgerId = await ledgerAccountIdFor(raceSender.account.id);
+      await fund(raceLedgerId, '1000', 'race-sender');
+      const attempt = (reference: string, suffix: string) =>
+        customerTransfers.transfer(
+          command({
+            transferId: randomUUID(),
+            transferReference: `AEGIS-TRF-${runId}-${suffix}`,
+            senderCustomerId: raceSenderCustomer,
+            sourceAccountId: raceSender.account.id,
+            recipientReference: reference,
+            amountMinor: '700',
+            idempotencyKey: `transfer-${runId}-${suffix}`,
+          }),
+          randomUUID(),
+        );
+      const outcomes = await Promise.allSettled([
+        attempt(raceRecipientOne.account.receivingReference, 'race-one'),
+        attempt(raceRecipientTwo.account.receivingReference, 'race-two'),
+      ]);
+      expect(
+        outcomes.filter((outcome) => outcome.status === 'fulfilled'),
+      ).toHaveLength(1);
+      expect(
+        outcomes.filter((outcome) => outcome.status === 'rejected'),
+      ).toHaveLength(1);
+      const projection = await projectionOf(raceLedgerId);
+      expect(projection.credit - projection.debit).toBe(300n);
+    });
+
+    it('processes opposite-direction transfers without deadlock', async () => {
+      await fund(recipientLedgerAccountId, '1000', 'recipient-opposite');
+      const outcomes = await Promise.all([
+        customerTransfers.transfer(
+          command({
+            transferId: randomUUID(),
+            transferReference: `AEGIS-TRF-${runId}-FORWARD`,
+            amountMinor: '100',
+            idempotencyKey: `transfer-${runId}-forward`,
+          }),
+          randomUUID(),
+        ),
+        customerTransfers.transfer(
+          command({
+            transferId: randomUUID(),
+            transferReference: `AEGIS-TRF-${runId}-REVERSE`,
+            senderCustomerId: recipientCustomerId,
+            sourceAccountId: recipientAccountId,
+            recipientReference: (
+              await accounts.getForCustomer(senderCustomerId, senderAccountId)
+            ).receivingReference,
+            amountMinor: '100',
+            idempotencyKey: `transfer-${runId}-reverse`,
+          }),
+          randomUUID(),
+        ),
+      ]);
+      expect(outcomes).toHaveLength(2);
+    });
+
+    it('keeps transfer journals and postings immutable', async () => {
+      await expect(
+        prisma.client.$executeRaw`
+          UPDATE "app"."journal_entries" SET "description" = 'tampered'
+          WHERE "id" = ${successfulJournalId}::uuid
+        `,
+      ).rejects.toThrow();
+      await expect(
+        prisma.client.$executeRaw`
+          DELETE FROM "app"."journal_postings"
+          WHERE "journal_entry_id" = ${successfulJournalId}::uuid
+        `,
+      ).rejects.toThrow();
+      const [row] = await prisma.client.$queryRaw<Array<{ total: bigint }>>`
+        SELECT COUNT(*) AS total FROM "app"."journal_postings"
+        WHERE "journal_entry_id" = ${successfulJournalId}::uuid
+      `;
+      expect(row?.total).toBe(2n);
     });
   });
 

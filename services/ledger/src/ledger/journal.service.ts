@@ -102,6 +102,12 @@ export function assertBalanced(
   return debitTotal;
 }
 
+export function deterministicAccountOrder(
+  ledgerAccountIds: readonly string[],
+): string[] {
+  return [...new Set(ledgerAccountIds)].sort();
+}
+
 @Injectable()
 export class JournalService {
   constructor(
@@ -263,7 +269,7 @@ export class JournalService {
     tx: Prisma.TransactionClient,
     ledgerAccountIds: readonly string[],
   ): Promise<LockedAccount[]> {
-    const uniqueIds = [...new Set(ledgerAccountIds)].sort();
+    const uniqueIds = deterministicAccountOrder(ledgerAccountIds);
     const rows = await tx.$queryRaw<
       Array<{
         id: string;
