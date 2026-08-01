@@ -137,34 +137,54 @@ test('operator triages escalating risk, releases control and resolves incident @
   await expect(page.getByText(/RESOLVED/u).first()).toBeVisible();
   await page.getByRole('link', { name: /Security Operations/u }).click();
 
-  // Release every active control, not just the first.
+  // Drain the active-control list completely.
   //
-  // The assertion below is that the console ends with no active controls, and
-  // that only follows from releasing one control if exactly one exists. Earlier
-  // suites in the same CI run — the Jest transfer end-to-end emits risk events
-  // and evaluates an assessment against the shared Risk database — can leave
-  // their own controls active, and the seeded critical assessment may itself
-  // produce more than one. Releasing what is actually there makes the outcome
-  // depend on operator behaviour rather than on how much state preceded it.
+  // The assertion at the end is that the console shows no active controls, and
+  // that only follows from releasing one control if exactly one exists. Two
+  // things break that assumption. The console renders a bounded page with a
+  // "Load more controls" button and refetches after each release, so a single
+  // zero reading can be a momentary mid-refetch state rather than an empty
+  // list. And this branch integrates Prompt 08 and Prompt 09, so the Jest
+  // transfer end-to-end now writes Risk controls to the same database earlier
+  // in the CI job — this journey is no longer the only producer.
   //
-  // The final assertion is unchanged and still exact: none may remain.
-  // Re-read the count each pass rather than trusting the first reading. The
-  // console renders a bounded page of controls, so releasing the ones initially
-  // visible can reveal more; a fixed counter stops early and leaves the list
-  // non-empty. The bound is a guard against an unreleasable control, not a
-  // timeout — it fails loudly rather than waiting.
+  // Each pass reloads for a clean server-rendered view, expands every page, and
+  // releases what is there. The loop ends only when a freshly loaded, fully
+  // expanded list shows nothing, which is exactly the state the assertions
+  // below pin. Nothing is relaxed: no timeout replaces a state assertion, and
+  // the bounds fail loudly rather than passing on exhaustion.
   const release = page.getByRole('button', { name: 'Release' });
-  for (let pass = 0; pass < 25; pass += 1) {
+  const showMore = page.getByRole('button', { name: 'Load more controls' });
+
+  for (let pass = 0; pass < 15; pass += 1) {
+    await page.reload();
+    await expect(
+      page.getByRole('heading', { name: 'Risk operations overview' }),
+    ).toBeVisible();
+
+    // Expand every page of controls before counting.
+    for (
+      let expand = 0;
+      expand < 15 && (await showMore.count()) > 0;
+      expand++
+    ) {
+      await showMore.first().click();
+    }
+
     const remaining = await release.count();
     if (remaining === 0) break;
-    page.once('dialog', (dialog) =>
-      dialog.accept('Verified safe recovery after operator review.'),
-    );
-    await release.first().click();
-    // Something must change on every pass, or we would spin on a control the
-    // operator cannot release.
-    await expect(release).not.toHaveCount(remaining);
+
+    for (let index = 0; index < remaining; index += 1) {
+      page.once('dialog', (dialog) =>
+        dialog.accept('Verified safe recovery after operator review.'),
+      );
+      await release.first().click();
+      // The released control must leave the list, or we would spin on one the
+      // operator cannot release.
+      await expect(release).toHaveCount(remaining - index - 1);
+    }
   }
+
   await expect(release).toHaveCount(0);
   await expect(page.getByText('No active controls.')).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
