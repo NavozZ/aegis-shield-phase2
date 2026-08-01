@@ -132,4 +132,8 @@ Integration tests use synthetic random customer identifiers. Posted journals and
 
 ## Prototype limitations
 
-There are no transfers, external payments, QR, USSD, agent cash, cards, loans, interest, fees or foreign exchange. Only `ACTIVE` account creation and reads are implemented; `FROZEN` and `CLOSED` exist in the model but have no transitions yet. Transaction history arrives in Prompt 06. Accounts are synthetic, start at zero and hold no real money.
+There are no external payment rails, QR, USSD, agent cash, cards, loans, interest, fees, or foreign exchange. Internal synthetic LKR customer transfers are implemented; accounts still hold no real money.
+
+## Customer transfers
+
+The private transfer boundary resolves the sender-owned active source and recipient's public receiving reference, rejects self/currency/state/funds violations, locks both ledger accounts in deterministic UUID order, and posts exactly one immutable `CUSTOMER_TRANSFER` journal containing sender `DEBIT` and recipient `CREDIT`. The same command key replays the original journal; a changed payload conflicts. Customer history exposes `OUTGOING`/`INCOMING` with category `TRANSFER` and safe metadata only.

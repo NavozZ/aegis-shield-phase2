@@ -1,6 +1,6 @@
 # AEGIS Shield API Gateway
 
-The NestJS HTTP entry point for AEGIS Shield. It owns the public HTTP, cookie and CSRF boundary and forwards only allowlisted operations to the private Identity and Ledger services. It owns no credentials, user records, sessions or banking state, and it is not a generic proxy.
+The NestJS HTTP entry point for AEGIS Shield. It owns the public HTTP, cookie and CSRF boundary and forwards only allowlisted operations to private Identity, Payments, and Ledger services. It owns no credentials, user records, sessions or banking state, and it is not a generic proxy.
 
 Customer transaction reads are `GET /api/v1/accounts/:accountId/transactions` and `GET /api/v1/accounts/:accountId/transactions/:transactionId`. The Gateway derives the customer from the session, validates queries and Ledger responses, forwards its trusted internal token and correlation ID server-side, and applies `Cache-Control: private, no-store`. No customer transaction-write route exists.
 
@@ -13,6 +13,7 @@ pnpm --filter @aegis/api-gateway typecheck
 pnpm --filter @aegis/api-gateway test
 pnpm --filter @aegis/api-gateway test:e2e
 pnpm --filter @aegis/api-gateway test:e2e:accounts
+pnpm --filter @aegis/api-gateway test:e2e:transfers
 pnpm --filter @aegis/api-gateway build
 ```
 
@@ -22,7 +23,9 @@ The gateway defaults to `http://localhost:4000`. Override the port with `API_POR
 
 `GET http://localhost:4000/health` returns service identity, version, environment, and a dynamic ISO-8601 timestamp. It intentionally exposes no secrets or dependency details. This contract is unchanged.
 
-`GET /health/ready` reports whether Identity and the Ledger are both reachable.
+`GET /health/ready` reports whether Identity, Ledger, and Payments are reachable.
+
+Transfers are exposed under `/api/v1/transfers`. Reads require a session and use private no-store caching; preview and confirm additionally require CSRF. Confirmation requires a validated `Idempotency-Key`; Gateway sends the PIN only to Identity, then sends Payments only the intent, trusted session customer, and key. Completed responses are `200`; uncertain `PROCESSING` responses are `202`.
 
 ## Routes
 
@@ -43,4 +46,4 @@ There is deliberately no browser-facing route that posts a journal entry: ledger
 
 ## Internal credentials
 
-`IDENTITY_INTERNAL_TOKEN` and `LEDGER_INTERNAL_TOKEN` are used server-side only. They are never echoed to a browser and never exposed through a `NEXT_PUBLIC_` variable. Upstream responses are re-validated against the shared contracts before they reach a customer; a response that does not satisfy its contract is treated as an outage rather than passed through.
+`IDENTITY_INTERNAL_TOKEN`, `LEDGER_INTERNAL_TOKEN`, and `PAYMENTS_INTERNAL_TOKEN` are server-side only. They are never echoed to a browser or exposed through a `NEXT_PUBLIC_` variable. Upstream responses are re-validated against shared contracts; malformed responses become a safe outage.

@@ -115,12 +115,14 @@ jobs:
         run: pnpm --filter @aegis/contracts test
       - name: Test Identity service
         run: pnpm --filter @aegis/identity-service test
-      - name: Test Ledger units including transaction history
+      - name: Test Identity transfer step-up
+        run: pnpm --filter @aegis/identity-service test -- --runTestsByPath src/auth/step-up/transfer-step-up.service.spec.ts
+      - name: Test Ledger transfer units including transaction history
         run: pnpm ledger:test
       - name: Test Payments units
         run: pnpm payments:test
-      - name: Test Ledger PostgreSQL transaction history, immutability and reconciliation
-        run: pnpm transactions:test:integration
+      - name: Test Ledger PostgreSQL transfer integration and concurrency
+        run: pnpm ledger:test:integration
       - name: Test Payments PostgreSQL transfer processing
         run: pnpm payments:test:integration
       - name: Test API Gateway
@@ -129,21 +131,23 @@ jobs:
         run: pnpm auth:test:e2e
       - name: Test authenticated account and transaction routes end to end
         run: pnpm transactions:test:e2e
-      - name: Test web units including dashboard and transaction components
+      - name: Test real Gateway Identity Payments Ledger transfers end to end
+        run: pnpm payments:test:e2e
+      - name: Test web transfer components including polling and idempotency
         run: pnpm web:test
       - name: Install Playwright Chromium
         run: pnpm --filter @aegis/web exec playwright install --with-deps chromium
-      - name: Test browser authentication, account and transaction journeys
+      - name: Test real transfer Playwright journey and browser flows
         run: pnpm web:test:e2e
-      - name: Test browser accessibility including transaction surfaces
+      - name: Test transfer accessibility including EN SI TA and mobile states
         run: pnpm web:test:a11y
       # The browser harness stops infrastructure as part of its own cleanup, so
       # reconciliation restarts it. Named volumes persist, so the ledger written
       # by the earlier steps is still there to be checked.
       - name: Restart infrastructure for reconciliation
         run: pnpm infra:up && pnpm infra:check
-      - name: Reconcile the ledger
-        run: pnpm --filter @aegis/ledger-service build && pnpm ledger:reconcile
+      - name: Reconcile Ledger and Payments
+        run: pnpm --filter @aegis/ledger-service build && pnpm --filter @aegis/payments-service build && pnpm ledger:reconcile && pnpm payments:reconcile
       - name: Upload Playwright report on failure
         if: failure()
         uses: actions/upload-artifact@v7

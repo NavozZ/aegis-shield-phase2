@@ -1,6 +1,6 @@
 # AEGIS Shield Phase 2 User Guide
 
-This guide explains how to run and demonstrate the Prompt 06 customer onboarding, secure sign-in, Tier-0 account, and read-only transaction-history experience. The platform performs no customer money movement; the authenticated workspace clearly marks deferred features.
+This guide explains how to run and demonstrate Prompt 07 onboarding, secure sign-in, Tier-0 accounts, transaction history, and synthetic internal customer transfers. No external rail or real funds are connected.
 
 ## Introduction
 
@@ -12,7 +12,7 @@ AEGIS Shield is a Duothan 6.0 hackathon prototype for resilient and inclusive ze
 - Node.js `>=22.12`; Node.js 22 is selected by `.nvmrc`
 - pnpm `11.8.0`
 - Docker Desktop or Docker Engine with Docker Compose v2
-- Available local TCP ports 3000, 4000, 4101, 5432, and 6379
+- Available local TCP ports 3000, 4000, 4101, 4102, 4104, 5432, and 6379
 
 Confirm the toolchain:
 
@@ -190,11 +190,33 @@ A new account is opened with a zero balance. No opening entry is written and no 
 
 Full account references and internal ledger identifiers are never shown; only a masked reference such as `AEGIS-****-****-8T3W` is displayed.
 
+### Send a synthetic customer transfer
+
+1. Create a second synthetic customer in another browser context and copy that account's receiving reference.
+2. Select **Send money**, choose the source account, enter the recipient reference and an LKR decimal amount, then preview.
+3. Verify the masked recipient and exact amount. Enter the sender's PIN for fresh Identity step-up authorization.
+4. A completed transfer opens a printable record. A `PROCESSING` result is polled safely; do not submit a new key. Sent/received views, balances, and `TRANSFER` transaction history converge from the same Ledger journal.
+5. Wrong PIN, expired preview, insufficient funds, self-transfer, and daily-limit cases show safe messages. PINs, tokens, hashes, and Ledger identifiers are never displayed or stored in browser storage.
+
+Validate the flow with:
+
+```powershell
+pnpm payments:test
+pnpm payments:test:integration
+pnpm payments:test:e2e
+pnpm web:test:e2e
+pnpm web:test:a11y
+pnpm ledger:reconcile
+pnpm payments:reconcile
+```
+
+See the [repeatable transfer demo](docs/demo/customer-transfer-demo.md).
+
 ### Session expiration and logout
 
 Protected routes verify the session with the Gateway before rendering. Expired or revoked sessions redirect to `/sign-in`; an unavailable dependency shows a retryable service-unavailable screen. Select **Log out** to revoke the server session, clear authentication cookies, replace browser history, and return to sign-in.
 
-Transfers, transaction history, QR payments, USSD, and agent-assisted journeys remain deferred.
+External/QR payments, USSD, and agent-assisted journeys remain deferred.
 
 ## Administrator journey
 

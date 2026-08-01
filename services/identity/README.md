@@ -87,3 +87,7 @@ The final command starts the built Identity service as a separate process and te
 ## Prototype limitations
 
 Demo OTP exists only for local/test use and is intentionally rejected in production. No SMS provider, customer-facing authentication UI, account recovery, KYC upgrade, mTLS/workload identity, or real browser authenticator ceremony is included. Prompt 04 owns the browser UI and physical passkey ceremony.
+
+## Transfer step-up
+
+`POST /api/v1/auth/transfer-step-up` is internal-only. It validates the active session and six-digit PIN without extending the session, records success/failure evidence, and applies Redis-backed attempt cooldown. Gateway is the only transfer component that sends the PIN, and it sends it only to Identity; Payments and Ledger never receive or store it.

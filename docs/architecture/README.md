@@ -85,7 +85,11 @@ The following remain to be completed as their implementations are introduced:
 
 - context and container diagrams
 - production workload-authentication flow
-- idempotent transfer flow between two customer wallets
+- external/QR payment flows
 - transaction history and statement flow
 - SABCL-protected communication flow
 - failure isolation and recovery flow
+
+## Prompt 07 transfer flow
+
+`Browser → Gateway → Identity` performs session and fresh PIN step-up; the PIN stops there. Gateway then sends a session-derived customer, opaque intent, and idempotency key to Payments. Payments owns limits and lifecycle state, while `Payments → Ledger` posts the sole balance-changing `CUSTOMER_TRANSFER` journal. Ledger locks both accounts in deterministic order and writes one debit plus one credit. A lost response remains `PROCESSING`; recovery repeats the same Ledger command and reconciliation compares both service views. See [ADR 0008](../decisions/0008-secure-customer-transfers.md).

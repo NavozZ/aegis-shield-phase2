@@ -1,6 +1,6 @@
 # AEGIS Shield Web
 
-The customer-facing Next.js application implements responsive English, Sinhala, and Tamil onboarding, passkey-first sign-in, protected routes, account balances, recent activity, filterable transaction history, additive load-more pagination, and safe printable prototype records. Transfers and payments remain deferred.
+The customer-facing Next.js application implements responsive English, Sinhala, and Tamil onboarding, passkey-first sign-in, protected routes, accounts, transaction history, secure transfer preview/PIN confirmation, sent/received lists, bounded processing polling, and printable records.
 
 Financial responses are fetched with `no-store` and are never persisted in browser storage. The printable record hides navigation and controls, renders in black and white, and contains only customer-safe fields.
 
@@ -31,3 +31,7 @@ The authenticated `/app` route renders a Tier-0 wallet summary from Gateway-vali
 Balances are received as minor-unit strings and formatted for display without converting through a JavaScript number, so a value beyond `Number.MAX_SAFE_INTEGER` still renders exactly. A new account displays `LKR 0.00`. The interface shows no fabricated funds, transactions or interest, and never renders a raw customer identifier, a full account reference, or an internal ledger identifier.
 
 The development server is available at `http://localhost:3000`.
+
+## Transfers
+
+Transfer amounts stay decimal strings until shared-contract conversion to minor units. The form disables duplicate submission and reuses one in-memory idempotency key after an uncertain retry. Receiving references are shown only to their owner; previews and records use masked counterparties. `PROCESSING` records poll at a bounded interval, cancel on unmount, and warn after timeout. No financial value, PIN, intent, or idempotency key is written to `localStorage` or `sessionStorage`.
