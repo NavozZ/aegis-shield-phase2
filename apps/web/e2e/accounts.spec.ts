@@ -6,7 +6,9 @@ const phone = '+12025550127';
 const pin = '628413';
 
 async function demoOtp(page: Page): Promise<string> {
-  return (await page.locator('.demo-code').first().textContent())?.trim() || '';
+  const code = page.locator('.demo-code').first();
+  await code.waitFor({ state: 'visible' });
+  return (await code.textContent())?.trim() || '';
 }
 
 /** Onboards the synthetic account-flow customer and lands on the workspace. */
