@@ -83,6 +83,20 @@ jobs:
       IDENTITY_REDIS_PREFIX: 'aegis:identity:test:ci:'
       DEMO_AUTH_ENABLED: true
       FIELD_ENCRYPTION_KEY: CI_ONLY_NOT_PRODUCTION_KEY
+      # Inclusive-channel configuration. Payments now requires these to build
+      # its configuration at all, so anything that constructs it — the service
+      # itself, and the reconciliation script — needs them present.
+      #
+      # They are declared here rather than inherited from the committed
+      # .env.example: relying on an example file to supply a required secret in
+      # CI is implicit, and it hides exactly this class of failure until a step
+      # that happens to run without it falls over. Every value is obviously fake
+      # and CI-only.
+      PAYMENTS_QR_SIGNING_KEY: ci-only-not-production-qr-signing-key
+      PAYMENTS_QR_DYNAMIC_TTL_SECONDS: 300
+      PAYMENTS_QR_STATIC_TTL_HOURS: 8760
+      USSD_PROVIDER_SECRET: ci-only-not-production-ussd-provider-secret
+      PAYMENTS_REDIS_PREFIX: 'aegis:payments:test:ci:'
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -121,6 +135,17 @@ jobs:
         run: pnpm ledger:test
       - name: Test Payments units
         run: pnpm payments:test
+      # Named steps for the inclusive channels, so a channel regression is
+      # identifiable from the CI summary instead of being one line inside a
+      # combined Payments run.
+      - name: Test Payments application startup and channel configuration
+        run: pnpm payments:test:startup
+      - name: Test QR signing, tampering, expiry and replay
+        run: pnpm channels:test:qr
+      - name: Test USSD session state, expiry and webhook security
+        run: pnpm channels:test:ussd
+      - name: Test agent cash authorization, limits and idempotency
+        run: pnpm channels:test:agent
       - name: Test Ledger PostgreSQL transfer integration and concurrency
         run: pnpm ledger:test:integration
       - name: Test Payments PostgreSQL transfer processing
