@@ -19,6 +19,7 @@ import type { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
 import { configureApplication } from '../src/app.setup';
 import {
+  callService,
   startService,
   stopService,
   waitForService,
@@ -160,7 +161,7 @@ describe('Customer transfers through Gateway, Identity, Payments and Ledger (e2e
     await pool.end();
     const row = rows[0];
     if (!row) throw new Error('Funding accounts missing.');
-    const response = await fetch(
+    const response = await callService(
       `${process.env.LEDGER_SERVICE_URL}/internal/journal-entries`,
       {
         method: 'POST',
@@ -433,7 +434,7 @@ describe('Customer transfers through Gateway, Identity, Payments and Ledger (e2e
       [pending.id],
     );
     await pool.end();
-    const recovery = await fetch(
+    const recovery = await callService(
       `${process.env.PAYMENTS_SERVICE_URL}/internal/recovery/run`,
       {
         method: 'POST',
@@ -452,7 +453,7 @@ describe('Customer transfers through Gateway, Identity, Payments and Ledger (e2e
     expect(recovered.status).toBe('COMPLETED');
 
     for (let index = 0; index < 3; index += 1) {
-      const eventResponse = await fetch(
+      const eventResponse = await callService(
         `${process.env.RISK_SERVICE_URL}/internal/v1/events`,
         {
           method: 'POST',
@@ -476,7 +477,7 @@ describe('Customer transfers through Gateway, Identity, Payments and Ledger (e2e
       );
       expect(eventResponse.ok).toBe(true);
     }
-    const escalation = await fetch(
+    const escalation = await callService(
       `${process.env.RISK_SERVICE_URL}/internal/v1/assessments/evaluate`,
       {
         method: 'POST',
@@ -495,7 +496,9 @@ describe('Customer transfers through Gateway, Identity, Payments and Ledger (e2e
       },
     );
     expect(escalation.ok).toBe(true);
-    expect(await escalation.json()).toMatchObject({
+    // callService already drained and parsed the body, so the socket is
+    // released rather than left checked out of the keep-alive pool.
+    expect(escalation.body).toMatchObject({
       band: 'MEDIUM',
       decision: 'REQUIRE_STEP_UP',
       controlRecommendation: 'REQUIRE_STEP_UP',
@@ -510,7 +513,7 @@ describe('Customer transfers through Gateway, Identity, Payments and Ledger (e2e
       confirm(sender, steppedUpPreview.intentToken, `transfer-${randomUUID()}`),
     ).resolves.toMatchObject({ status: 'COMPLETED' });
 
-    const integrityResponse = await fetch(
+    const integrityResponse = await callService(
       `${process.env.RISK_SERVICE_URL}/internal/v1/events`,
       {
         method: 'POST',
@@ -533,7 +536,7 @@ describe('Customer transfers through Gateway, Identity, Payments and Ledger (e2e
       },
     );
     expect(integrityResponse.ok).toBe(true);
-    const untrustedIngestion = await fetch(
+    const untrustedIngestion = await callService(
       `${process.env.RISK_SERVICE_URL}/internal/v1/events`,
       {
         method: 'POST',

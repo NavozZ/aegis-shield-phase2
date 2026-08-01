@@ -233,6 +233,43 @@ export async function waitForService(
   );
 }
 
+export interface ServiceCallResult {
+  status: number;
+  ok: boolean;
+  /** Parsed JSON when the response had a JSON body, otherwise undefined. */
+  body: unknown;
+}
+
+/**
+ * Calls a service from a test without leaking a socket.
+ *
+ * Node's global fetch keeps connections in a keep-alive pool, and a response
+ * whose body is never read keeps its socket checked out. Either is enough for
+ * Jest to report "did not exit one second after the test run has completed" —
+ * which is exactly what the transfer end-to-end suite was doing, because
+ * several of its calls only inspect `.ok` or `.status` and never touch the
+ * body.
+ *
+ * `connection: close` stops the socket being pooled, and reading the body to
+ * completion releases it. Both are needed.
+ */
+export async function callService(
+  url: string,
+  init: RequestInit = {},
+): Promise<ServiceCallResult> {
+  const headers = new Headers(init.headers);
+  headers.set('connection', 'close');
+  const response = await fetch(url, { ...init, headers });
+  const text = await response.text().catch(() => '');
+  let body: unknown;
+  try {
+    body = text.length > 0 ? JSON.parse(text) : undefined;
+  } catch {
+    body = undefined;
+  }
+  return { status: response.status, ok: response.ok, body };
+}
+
 /**
  * One readiness probe.
  *
