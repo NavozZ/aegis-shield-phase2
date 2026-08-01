@@ -95,7 +95,7 @@ export function AccountPanel({
               </dd>
             </div>
           </dl>
-          <p className="account-next">{dictionary.historyInPrompt06}</p>
+          <p className="account-next">{dictionary.transfersPrompt07}</p>
         </>
       ) : (
         <>

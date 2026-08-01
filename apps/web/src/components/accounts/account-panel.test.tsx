@@ -198,7 +198,7 @@ describe('account panel with an account', () => {
     expect(screen.getByText('LKR')).toBeInTheDocument();
     expect(screen.getByText('LKR 0.00')).toBeInTheDocument();
     expect(
-      screen.getByText('Transaction history comes in Prompt 06.'),
+      screen.getByText('Transfers coming in Prompt 07'),
     ).toBeInTheDocument();
   });
 
@@ -273,7 +273,7 @@ describe('account panel translations', () => {
         screen.getByText(dictionaries[language].accountBalance),
       ).toBeInTheDocument();
       expect(
-        screen.getByText(dictionaries[language].historyInPrompt06),
+        screen.getByText(dictionaries[language].transfersPrompt07),
       ).toBeInTheDocument();
       // The formatted amount is locale-independent in this prototype.
       expect(screen.getByText('LKR 0.00')).toBeInTheDocument();

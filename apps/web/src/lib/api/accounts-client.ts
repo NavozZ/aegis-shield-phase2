@@ -5,6 +5,8 @@ import {
   type AccountBalance,
   type CustomerAccountDetail,
   type CustomerAccountList,
+  transactionHistoryResponseSchema,
+  type TransactionHistoryResponse,
 } from '@aegis/contracts';
 import { request } from './http';
 
@@ -43,6 +45,16 @@ export const accountsClient = {
     return request(
       `/api/v1/accounts/${encodeURIComponent(accountId)}/balance`,
       accountBalanceSchema,
+      { method: 'GET', unauthenticatedKind: 'session_expired' },
+    );
+  },
+  transactions(
+    accountId: string,
+    query: URLSearchParams,
+  ): Promise<TransactionHistoryResponse> {
+    return request(
+      `/api/v1/accounts/${encodeURIComponent(accountId)}/transactions?${query}`,
+      transactionHistoryResponseSchema,
       { method: 'GET', unauthenticatedKind: 'session_expired' },
     );
   },

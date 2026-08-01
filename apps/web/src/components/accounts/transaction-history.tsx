@@ -3,6 +3,8 @@
 import { formatMoney, type TransactionHistoryResponse } from '@aegis/contracts';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useState } from 'react';
+import { accountsClient } from '@/lib/api/accounts-client';
 import { useLanguage } from '@/lib/i18n/language-provider';
 
 export function TransactionHistory({
@@ -16,6 +18,9 @@ export function TransactionHistory({
   const path = usePathname();
   const params = useSearchParams();
   const { dictionary } = useLanguage();
+  const [history, setHistory] = useState(initial);
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   function set(name: string, value: string) {
     const next = new URLSearchParams(params);
     if (value) next.set(name, value);
@@ -109,9 +114,9 @@ export function TransactionHistory({
           {dictionary.clearFilters}
         </button>
       </div>
-      {initial.transactions.length ? (
+      {history.transactions.length ? (
         <ol className="transaction-list">
-          {initial.transactions.map((item) => (
+          {history.transactions.map((item) => (
             <li key={item.id}>
               <Link href={`/app/accounts/${accountId}/transactions/${item.id}`}>
                 <span>
@@ -140,13 +145,39 @@ export function TransactionHistory({
       ) : (
         <p role="status">{dictionary.noTransactionsYet}</p>
       )}
-      {initial.nextCursor ? (
+      {loadError ? <p role="alert">{dictionary.historyUnavailable}</p> : null}
+      {history.nextCursor ? (
         <button
           className="button button-secondary"
-          onClick={() => {
+          aria-busy={loading}
+          disabled={loading}
+          onClick={async () => {
+            if (!history.nextCursor || loading) return;
+            setLoading(true);
+            setLoadError(false);
             const next = new URLSearchParams(params);
-            next.set('cursor', initial.nextCursor!);
-            router.push(`${path}?${next}`);
+            next.set('cursor', history.nextCursor);
+            try {
+              const loaded = await accountsClient.transactions(accountId, next);
+              setHistory((current) => {
+                const known = new Set(
+                  current.transactions.map((item) => item.id),
+                );
+                return {
+                  transactions: [
+                    ...current.transactions,
+                    ...loaded.transactions.filter(
+                      (item) => !known.has(item.id),
+                    ),
+                  ],
+                  nextCursor: loaded.nextCursor,
+                };
+              });
+            } catch {
+              setLoadError(true);
+            } finally {
+              setLoading(false);
+            }
           }}
         >
           {dictionary.loadMore}

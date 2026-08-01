@@ -171,6 +171,7 @@ const en = {
   clearFilters: 'Clear filters',
   loadMore: 'Load more',
   balanceAfter: 'Balance after',
+  amount: 'Amount',
   transactionReference: 'Transaction reference',
   effectiveDate: 'Effective date',
   postedDate: 'Posted date',
@@ -184,6 +185,8 @@ const en = {
   transactionNotFound: 'Transaction not found',
   historyUnavailable: 'History unavailable',
   transfersPrompt07: 'Transfers coming in Prompt 07',
+  transactionDisclaimer:
+    'This is a synthetic prototype record, not proof of payment or a financial instrument.',
 } as const;
 
 export type TranslationKey = keyof typeof en;
@@ -351,6 +354,7 @@ const si: Dictionary = {
   clearFilters: 'පෙරහන් ඉවත් කරන්න',
   loadMore: 'තවත් පූරණය කරන්න',
   balanceAfter: 'පසු ශේෂය',
+  amount: 'මුදල',
   transactionReference: 'ගනුදෙනු යොමුව',
   effectiveDate: 'ක්‍රියාත්මක දිනය',
   postedDate: 'සටහන් කළ දිනය',
@@ -364,6 +368,8 @@ const si: Dictionary = {
   transactionNotFound: 'ගනුදෙනුව සොයාගත නොහැක',
   historyUnavailable: 'ඉතිහාසය නොමැත',
   transfersPrompt07: 'හුවමාරු Prompt 07 හි පැමිණේ',
+  transactionDisclaimer:
+    'මෙය කෘතිම මූලාකෘති වාර්තාවක් පමණි; ගෙවීමේ සාක්ෂියක් හෝ මූල්‍ය උපකරණයක් නොවේ.',
 };
 
 const ta: Dictionary = {
@@ -540,6 +546,7 @@ const ta: Dictionary = {
   clearFilters: 'வடிகட்டிகளை அழி',
   loadMore: 'மேலும் ஏற்று',
   balanceAfter: 'பின்னர் இருப்பு',
+  amount: 'தொகை',
   transactionReference: 'பரிவர்த்தனை குறிப்பு',
   effectiveDate: 'நடைமுறை தேதி',
   postedDate: 'பதிவு தேதி',
@@ -553,6 +560,8 @@ const ta: Dictionary = {
   transactionNotFound: 'பரிவர்த்தனை காணப்படவில்லை',
   historyUnavailable: 'வரலாறு கிடைக்கவில்லை',
   transfersPrompt07: 'பரிமாற்றங்கள் Prompt 07-இல் வரும்',
+  transactionDisclaimer:
+    'இது செயற்கை முன்மாதிரி பதிவு மட்டுமே; கட்டணச் சான்றோ நிதிக் கருவியோ அல்ல.',
 };
 
 export const dictionaries: Record<Language, Dictionary> = {

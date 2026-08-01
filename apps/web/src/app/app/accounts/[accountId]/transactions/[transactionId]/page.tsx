@@ -2,6 +2,7 @@ import { formatMoney } from '@aegis/contracts';
 import Link from 'next/link';
 import { PrintRecordButton } from '@/components/accounts/print-record-button';
 import { getServerTransaction } from '@/lib/accounts/server-transactions';
+import { getServerDictionary } from '@/lib/i18n/server';
 
 export default async function TransactionPage({
   params,
@@ -9,46 +10,63 @@ export default async function TransactionPage({
   params: Promise<{ accountId: string; transactionId: string }>;
 }) {
   const { accountId, transactionId } = await params;
-  const state = await getServerTransaction(accountId, transactionId);
+  const [state, dictionary] = await Promise.all([
+    getServerTransaction(accountId, transactionId),
+    getServerDictionary(),
+  ]);
   if (state.status !== 'ready')
-    return <p role="status">This transaction record is unavailable.</p>;
+    return (
+      <p role="status">
+        {state.status === 'not-found'
+          ? dictionary.transactionNotFound
+          : dictionary.transactionUnavailable}
+      </p>
+    );
   const item = state.value;
+  const direction =
+    item.direction === 'INCOMING' ? dictionary.incoming : dictionary.outgoing;
+  const category =
+    item.category === 'FUNDING'
+      ? dictionary.funding
+      : item.category === 'ADJUSTMENT'
+        ? dictionary.adjustment
+        : dictionary.other;
   return (
     <article className="receipt">
       <Link className="no-print" href={`/app/accounts/${accountId}`}>
-        ← Back to history
+        ← {dictionary.backToTransactions}
       </Link>
       <header>
-        <p className="eyebrow">AEGIS Shield · prototype record</p>
-        <h1>Transaction record</h1>
+        <p className="eyebrow">AEGIS Shield</p>
+        <h1>{dictionary.prototypeTransactionRecord}</h1>
       </header>
       <dl>
         <div>
-          <dt>Reference</dt>
+          <dt>{dictionary.transactionReference}</dt>
           <dd>{item.displayReference}</dd>
         </div>
         <div>
-          <dt>Status</dt>
-          <dd>{item.status}</dd>
+          <dt>{dictionary.accountStatus}</dt>
+          <dd>{dictionary.posted}</dd>
         </div>
         <div>
-          <dt>Direction</dt>
-          <dd>{item.direction}</dd>
+          <dt>{dictionary.direction}</dt>
+          <dd>{direction}</dd>
         </div>
         <div>
-          <dt>Category</dt>
-          <dd>{item.category}</dd>
+          <dt>{dictionary.category}</dt>
+          <dd>{category}</dd>
         </div>
         <div>
-          <dt>Amount</dt>
+          <dt>{dictionary.amount}</dt>
           <dd>{formatMoney(item.amount)}</dd>
         </div>
         <div>
-          <dt>Balance after</dt>
+          <dt>{dictionary.balanceAfter}</dt>
           <dd>{formatMoney(item.balanceAfter)}</dd>
         </div>
         <div>
-          <dt>Effective</dt>
+          <dt>{dictionary.effectiveDate}</dt>
           <dd>
             <time dateTime={item.effectiveAt}>
               {new Date(item.effectiveAt).toLocaleString()}
@@ -56,7 +74,7 @@ export default async function TransactionPage({
           </dd>
         </div>
         <div>
-          <dt>Posted</dt>
+          <dt>{dictionary.postedDate}</dt>
           <dd>
             <time dateTime={item.postedAt}>
               {new Date(item.postedAt).toLocaleString()}
@@ -64,17 +82,14 @@ export default async function TransactionPage({
           </dd>
         </div>
         <div>
-          <dt>Account</dt>
+          <dt>{dictionary.accountDetails}</dt>
           <dd>
             {item.maskedAccountReference} · {item.productType}
           </dd>
         </div>
       </dl>
       <PrintRecordButton />
-      <p>
-        This is a synthetic prototype record, not proof of payment or a
-        financial instrument.
-      </p>
+      <p>{dictionary.transactionDisclaimer}</p>
     </article>
   );
 }
