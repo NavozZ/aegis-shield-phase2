@@ -57,11 +57,13 @@ const SECRET_NAMES = [
   'REDIS_PASSWORD',
   'IDENTITY_INTERNAL_TOKEN',
   'LEDGER_INTERNAL_TOKEN',
+  'PAYMENTS_INTERNAL_TOKEN',
   'FIELD_ENCRYPTION_KEY',
   'SERVICE_AUTH_SHARED_SECRET',
   'SABCL_KEY_MATERIAL',
   'IDENTITY_DATABASE_URL',
   'LEDGER_DATABASE_URL',
+  'PAYMENTS_DATABASE_URL',
   'REDIS_URL',
   'DATABASE_URL',
 ];
@@ -89,6 +91,12 @@ const services = [
     entry: resolve(repositoryRoot, 'services', 'ledger', 'dist', 'main.js'),
     cwd: resolve(repositoryRoot, 'services', 'ledger'),
     readiness: `http://127.0.0.1:${environment.LEDGER_SERVICE_PORT || 4102}/health`,
+  },
+  {
+    name: 'Payments',
+    entry: resolve(repositoryRoot, 'services', 'payments', 'dist', 'main.js'),
+    cwd: resolve(repositoryRoot, 'services', 'payments'),
+    readiness: `http://127.0.0.1:${environment.PAYMENTS_SERVICE_PORT || 4104}/health/live`,
   },
   {
     name: 'Gateway',
@@ -188,7 +196,7 @@ try {
     process.stdout.write(`[stack] ${service.name} ready\n`);
   }
   process.stdout.write(
-    '[stack] Web 3000, Gateway 4000, Identity 4101, Ledger 4102 — press Ctrl+C to stop\n',
+    '[stack] Web 3000, Gateway 4000, Identity 4101, Ledger 4102, Payments 4104 — press Ctrl+C to stop\n',
   );
 } catch (error) {
   process.stderr.write(

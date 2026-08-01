@@ -1,0 +1,133 @@
+generator client {
+  provider = "prisma-client"
+  output = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+datasource db {
+  provider = "postgresql"
+}
+
+enum TransferStatus {
+  PROCESSING
+  COMPLETED
+  FAILED
+  REQUIRES_REVIEW
+}
+enum TransferFailureCode {
+  INSUFFICIENT_FUNDS
+  ACCOUNT_NOT_FOUND
+  ACCOUNT_NOT_ACTIVE
+  CURRENCY_MISMATCH
+  SELF_TRANSFER
+  LIMIT_EXCEEDED
+  INTENT_EXPIRED
+  AUTHORIZATION_FAILED
+  IDEMPOTENCY_CONFLICT
+  LEDGER_UNAVAILABLE
+  PROCESSING_TIMEOUT
+  INTERNAL_ERROR
+}
+enum TransferEventType {
+  INTENT_CREATED
+  AUTHORIZED
+  PROCESSING_STARTED
+  LEDGER_POSTED
+  COMPLETED
+  FAILED
+  RECOVERY_RETRY
+  REQUIRES_REVIEW
+}
+enum ReconciliationStatus {
+  PASS
+  FAIL
+}
+
+model TransferIntent {
+  id String @id @default(uuid()) @db.Uuid
+  tokenHash String @unique @map("token_hash") @db.Char(64)
+  senderCustomerId String @map("sender_customer_id") @db.Uuid
+  sourceAccountId String @map("source_account_id") @db.Uuid
+  recipientPublicReference String @map("recipient_public_reference") @db.VarChar(24)
+  sourceMaskedReference String @map("source_masked_reference") @db.VarChar(24)
+  recipientMaskedReference String @map("recipient_masked_reference") @db.VarChar(24)
+  recipientCustomerId String @map("recipient_customer_id") @db.Uuid
+  recipientAccountId String @map("recipient_account_id") @db.Uuid
+  currency String @db.Char(3)
+  amountMinor BigInt @map("amount_minor")
+  sourceBalanceSnapshotMinor BigInt @map("source_balance_snapshot_minor")
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(3)
+  authorizedAt DateTime? @map("authorized_at") @db.Timestamptz(3)
+  consumedAt DateTime? @map("consumed_at") @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  transfer Transfer?
+  @@index([senderCustomerId, expiresAt])
+  @@map("transfer_intents")
+}
+
+model Transfer {
+  id String @id @default(uuid()) @db.Uuid
+  displayReference String @unique @map("display_reference") @db.VarChar(32)
+  senderCustomerId String @map("sender_customer_id") @db.Uuid
+  recipientCustomerId String @map("recipient_customer_id") @db.Uuid
+  senderAccountId String @map("sender_account_id") @db.Uuid
+  recipientAccountId String @map("recipient_account_id") @db.Uuid
+  senderMaskedReference String @map("sender_masked_reference") @db.VarChar(24)
+  recipientMaskedReference String @map("recipient_masked_reference") @db.VarChar(24)
+  recipientPublicReference String @map("recipient_public_reference") @db.VarChar(24)
+  currency String @db.Char(3)
+  amountMinor BigInt @map("amount_minor")
+  status TransferStatus
+  failureCode TransferFailureCode? @map("failure_code")
+  failureMessageCode String? @map("failure_message_code") @db.VarChar(64)
+  ledgerJournalId String? @unique @map("ledger_journal_id") @db.Uuid
+  senderPostingId String? @map("sender_posting_id") @db.Uuid
+  recipientPostingId String? @map("recipient_posting_id") @db.Uuid
+  senderBalanceAfterMinor BigInt? @map("sender_balance_after_minor")
+  recipientBalanceAfterMinor BigInt? @map("recipient_balance_after_minor")
+  idempotencyKeyHash String @map("idempotency_key_hash") @db.Char(64)
+  requestHash String @map("request_hash") @db.Char(64)
+  intentId String @unique @map("intent_id") @db.Uuid
+  correlationId String @map("correlation_id") @db.Uuid
+  attemptCount Int @default(0) @map("attempt_count")
+  nextAttemptAt DateTime? @map("next_attempt_at") @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  completedAt DateTime? @map("completed_at") @db.Timestamptz(3)
+  failedAt DateTime? @map("failed_at") @db.Timestamptz(3)
+  intent TransferIntent @relation(fields: [intentId], references: [id], onDelete: Restrict)
+  events TransferEvent[]
+  @@unique([senderCustomerId, idempotencyKeyHash])
+  @@index([senderCustomerId, createdAt, id])
+  @@index([recipientCustomerId, createdAt, id])
+  @@index([senderCustomerId, status, createdAt])
+  @@index([status, nextAttemptAt])
+  @@map("transfers")
+}
+
+model TransferEvent {
+  id String @id @default(uuid()) @db.Uuid
+  transferId String @map("transfer_id") @db.Uuid
+  eventType TransferEventType @map("event_type")
+  previousStatus TransferStatus? @map("previous_status")
+  nextStatus TransferStatus? @map("next_status")
+  safeCode String? @map("safe_code") @db.VarChar(64)
+  occurredAt DateTime @map("occurred_at") @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  transfer Transfer @relation(fields: [transferId], references: [id], onDelete: Restrict)
+  @@index([transferId, occurredAt])
+  @@map("transfer_events")
+}
+
+model ReconciliationRun {
+  id String @id @default(uuid()) @db.Uuid
+  status ReconciliationStatus
+  checkedTransfers Int @map("checked_transfers")
+  checkedIntents Int @map("checked_intents")
+  issueCount Int @map("issue_count")
+  issues Json @default("[]")
+  startedAt DateTime @map("started_at") @db.Timestamptz(3)
+  completedAt DateTime @map("completed_at") @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  @@map("reconciliation_runs")
+}

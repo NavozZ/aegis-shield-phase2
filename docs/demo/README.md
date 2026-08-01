@@ -16,7 +16,7 @@ Implemented in Prompt 06. See [dashboard-transactions-demo.md](dashboard-transac
 
 ## Protected transfer
 
-To be completed during implementation. Demonstrate an authorized idempotent transfer, balanced ledger entries, replay handling, and a consistent customer result.
+Implemented in Prompt 07. See [customer-transfer-demo.md](customer-transfer-demo.md) for authorized idempotent settlement, replay, recovery, balanced Ledger evidence, responsive EN/SI/TA UI, and reconciliation.
 
 ## QR/offline payment
 

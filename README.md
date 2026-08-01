@@ -2,7 +2,7 @@
 
 AEGIS Shield is a zero-trust, resilient, and inclusive digital banking platform with SABCL metadata protection. This monorepo is the official Duothan 6.0 Phase 2 workspace for demonstrating secure banking journeys under normal operation, active threats, and service failure.
 
-> **Current status:** Prompt 06 read-only transaction history. The multilingual web UI, API Gateway, independent Identity and Ledger services, PostgreSQL/Redis state, shared contracts, protected application shell, Tier-0 account provisioning, and browser validation are implemented.
+> **Current status:** Prompt 07 secure synthetic customer transfers. The multilingual web UI, API Gateway, independent Identity, Payments and Ledger services, protected authorization, recovery, reconciliation, and real browser validation are implemented.
 
 ## Core problem
 
@@ -48,9 +48,13 @@ SABCL (Security-Aware Blind Communication Layer) is the project's signature meta
 - Ledger reconciliation command and internal reconciliation routes
 - Authenticated Gateway account routes with session-derived customer identity
 - Multilingual minimal account summary in the web application
+- Short-lived transfer intents, PIN step-up, CSRF, rate limits, and stable idempotent confirmation
+- Independent Payments orchestration with append-only lifecycle events and bounded recovery
+- Immutable `CUSTOMER_TRANSFER` journals with deterministic locks and exact BigInt balances
+- Sent/received history, masked previews, printable receipts, EN/SI/TA, responsive and axe coverage
 - Reserved boundaries for future services, shared packages, and infrastructure
 
-Transfers, transaction history, payments, SABCL, threat detection, service quarantine, production messaging, and disaster recovery are intentionally deferred.
+External payment rails, QR/offline payments, SABCL, threat detection, service quarantine, production messaging, and disaster recovery are intentionally deferred.
 
 ## Monorepo structure
 
@@ -146,6 +150,7 @@ pnpm dev
 - Gateway readiness: `http://localhost:4000/health/ready`
 - Identity service: `http://127.0.0.1:4101` (internal only)
 - Ledger service: `http://127.0.0.1:4102` (internal only)
+- Payments service: `http://127.0.0.1:4104` (internal only)
 
 Start a single application:
 
@@ -194,6 +199,16 @@ pnpm ledger:reconcile
 
 Only `pnpm ledger:test` runs without Docker. The integration, end-to-end and reconciliation commands require PostgreSQL and run in GitHub Actions or on a Docker-capable machine.
 
+Run transfer orchestration and real four-service checks with:
+
+```powershell
+pnpm payments:test
+pnpm payments:test:integration
+pnpm payments:test:e2e
+pnpm payments:recover
+pnpm payments:reconcile
+```
+
 Run web unit, browser, and accessibility checks with:
 
 ```powershell
@@ -209,7 +224,7 @@ Generated framework and Turborepo output can be removed safely with `pnpm clean`
 
 ## Architecture
 
-The browser loads the Next.js interface and calls the NestJS API Gateway directly for authentication and accounts. Next.js server components also ask the Gateway for safe session and account state before rendering protected routes. The Gateway owns the public HTTP/cookie boundary and forwards only allowlisted operations to the private Identity and Ledger services. Identity owns the `aegis_identity` schema and its namespaced Redis state; the Ledger owns the `aegis_ledger` schema. The Gateway derives the customer identifier from a validated session and never accepts one from a browser. Raw opaque sessions and internal tokens never enter response bodies or browser storage.
+The browser calls the Gateway for authentication, accounts, and transfers. Gateway sends PIN step-up only to Identity and trusted customer context only to Payments. Payments owns intent/idempotency/lifecycle state and asks Ledger—the sole balance authority—to post one balanced transfer journal. Identity, Payments, and Ledger own separate databases and never share tables. Raw sessions, PINs, internal tokens, hashes, and internal identifiers never enter public responses or browser storage.
 
 Money is stored and transported as integer minor units, never as a JavaScript number. Journals are immutable and their balance is enforced by deferred database constraint triggers.
 

@@ -131,4 +131,98 @@ test('@a11y authentication surfaces have no serious or critical axe violations',
   await expectAccessible(page, 'transaction detail record');
   await page.goto('/app/security');
   await expectAccessible(page, 'security settings page');
+
+  await page.goto('/app/transfers');
+  await expectAccessible(page, 'transfer list');
+  await page.setViewportSize({ width: 320, height: 800 });
+  await expectAccessible(page, 'mobile transfer list');
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto('/app/transfers/new');
+  await expectAccessible(page, 'transfer form');
+
+  const transferId = '44444444-4444-4444-8444-444444444444';
+  const createdAt = '2026-08-01T10:00:00.000Z';
+  await page.route('**/api/v1/transfers/preview', async (route) => {
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        intentToken: 'a'.repeat(43),
+        sourceMaskedReference: 'AEGIS-****-****-SRC1',
+        recipientMaskedReference: 'AEGIS-****-****-DST1',
+        amount: { currency: 'LKR', minorUnits: '100' },
+        sourceBalance: { currency: 'LKR', minorUnits: '100' },
+        policy: {
+          currency: 'LKR',
+          minimum: { currency: 'LKR', minorUnits: '100' },
+          maximum: { currency: 'LKR', minorUnits: '5000000' },
+          dailyOutgoingMaximum: { currency: 'LKR', minorUnits: '10000000' },
+        },
+        expiresAt: '2026-08-01T10:05:00.000Z',
+      }),
+    });
+  });
+  await page
+    .getByLabel('Recipient AEGIS reference')
+    .fill('AEGIS-ABCD-EFGH-JKLM');
+  await page.getByLabel('Amount (LKR)').fill('1.00');
+  await page.getByRole('button', { name: 'Preview transfer' }).click();
+  await expectAccessible(page, 'masked transfer preview and PIN confirmation');
+  await page.route('**/api/v1/transfers/confirm', async (route) => {
+    await route.fulfill({
+      status: 401,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        error: {
+          code: 'TRANSFER_STEP_UP_FAILED',
+          message: 'Authorization failed.',
+        },
+      }),
+    });
+  });
+  await page.getByLabel('Enter your PIN').fill(pin);
+  await page.getByRole('button', { name: 'Confirm transfer' }).click();
+  await expect(page.locator('.transfer-form [role="alert"]')).toBeVisible();
+  await expectAccessible(page, 'transfer authorization failure');
+  await page.unroute('**/api/v1/transfers/preview');
+  await page.unroute('**/api/v1/transfers/confirm');
+
+  let processing = true;
+  await page.route(`**/api/v1/transfers/${transferId}`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        id: transferId,
+        displayReference: 'AEGIS-TRF-ABCD-EFGH-JKLM',
+        direction: 'SENT',
+        status: processing ? 'PROCESSING' : 'COMPLETED',
+        accountId,
+        counterpartyMaskedReference: 'AEGIS-****-****-DST1',
+        amount: { currency: 'LKR', minorUnits: '100' },
+        createdAt,
+        completedAt: processing ? null : createdAt,
+        transactionId: processing
+          ? null
+          : '55555555-5555-4555-8555-555555555555',
+        balanceAfter: processing ? null : { currency: 'LKR', minorUnits: '0' },
+        failureCode: null,
+        ownMaskedReference: 'AEGIS-****-****-SRC1',
+      }),
+    });
+  });
+  await page.goto(`/app/transfers/${transferId}`);
+  await expect(page.getByText('PROCESSING', { exact: true })).toBeVisible();
+  await expectAccessible(page, 'processing transfer receipt');
+  processing = false;
+  await expect(page.getByText('COMPLETED', { exact: true })).toBeVisible({
+    timeout: 4_000,
+  });
+  await expectAccessible(page, 'completed transfer receipt');
+  await page.setViewportSize({ width: 320, height: 800 });
+  await expectAccessible(page, 'mobile transfer receipt');
+  await page.getByLabel('Interface language').selectOption('SI');
+  await expectAccessible(page, 'Sinhala transfer receipt');
+  await page.getByLabel('අතුරුමුහුණත් භාෂාව').selectOption('TA');
+  await expectAccessible(page, 'Tamil transfer receipt');
 });

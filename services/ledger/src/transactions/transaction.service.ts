@@ -19,7 +19,11 @@ type PostingRow = {
   amountMinor: bigint;
   createdAt: Date;
   journalEntry: {
-    entryType: 'ACCOUNT_ADJUSTMENT' | 'SETTLEMENT_FUNDING' | 'INTERNAL_TEST';
+    entryType:
+      | 'ACCOUNT_ADJUSTMENT'
+      | 'SETTLEMENT_FUNDING'
+      | 'INTERNAL_TEST'
+      | 'CUSTOMER_TRANSFER';
     effectiveAt: Date;
     createdAt: Date;
     status: 'POSTED';
@@ -38,7 +42,9 @@ function category(entryType: PostingRow['journalEntry']['entryType']) {
     ? 'FUNDING'
     : entryType === 'ACCOUNT_ADJUSTMENT'
       ? 'ADJUSTMENT'
-      : 'OTHER';
+      : entryType === 'CUSTOMER_TRANSFER'
+        ? 'TRANSFER'
+        : 'OTHER';
 }
 
 function fingerprint(query: TransactionHistoryQuery): string {

@@ -1,5 +1,6 @@
 import { Controller, Get, HttpException, HttpStatus } from '@nestjs/common';
 import { LedgerClient } from '../accounts/ledger.client';
+import { PaymentsClient } from '../transfers/payments.client';
 import { IdentityClient } from '../auth/identity.client';
 import {
   APPLICATION_NAME,
@@ -13,6 +14,7 @@ export class HealthController {
   constructor(
     private readonly identity: IdentityClient,
     private readonly ledger: LedgerClient,
+    private readonly payments: PaymentsClient,
   ) {}
 
   @Get()
@@ -29,11 +31,12 @@ export class HealthController {
   @Get('ready')
   async getReadiness(): Promise<{
     status: 'ready';
-    dependencies: { identity: 'up'; ledger: 'up' };
+    dependencies: { identity: 'up'; ledger: 'up'; payments: 'up' };
   }> {
-    const [identityReady, ledgerReady] = await Promise.all([
+    const [identityReady, ledgerReady, paymentsReady] = await Promise.all([
       this.identity.ready(),
       this.ledger.ready(),
+      this.payments.ready(),
     ]);
     if (!identityReady) {
       throw new HttpException(
@@ -47,6 +50,15 @@ export class HealthController {
         HttpStatus.SERVICE_UNAVAILABLE,
       );
     }
-    return { status: 'ready', dependencies: { identity: 'up', ledger: 'up' } };
+    if (!paymentsReady) {
+      throw new HttpException(
+        { error: { code: 'PAYMENTS_UNAVAILABLE' } },
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
+    return {
+      status: 'ready',
+      dependencies: { identity: 'up', ledger: 'up', payments: 'up' },
+    };
   }
 }

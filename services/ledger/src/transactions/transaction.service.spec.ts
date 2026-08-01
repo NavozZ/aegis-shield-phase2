@@ -10,7 +10,11 @@ function posting(
   id: string,
   direction: 'CREDIT' | 'DEBIT',
   amountMinor: bigint,
-  entryType: 'SETTLEMENT_FUNDING' | 'ACCOUNT_ADJUSTMENT' | 'INTERNAL_TEST',
+  entryType:
+    | 'SETTLEMENT_FUNDING'
+    | 'ACCOUNT_ADJUSTMENT'
+    | 'INTERNAL_TEST'
+    | 'CUSTOMER_TRANSFER',
   postedAt: string,
   effectiveAt = postedAt,
 ) {
@@ -94,6 +98,37 @@ describe('TransactionService customer-safe history', () => {
       { direction: 'OUTGOING', category: 'ADJUSTMENT' },
       { direction: 'INCOMING', category: 'FUNDING' },
     ]);
+  });
+
+  it('maps both sides of a customer transfer without exposing journal metadata', async () => {
+    const rows = [
+      posting(
+        '00000000-0000-4000-8000-000000000001',
+        'DEBIT',
+        125n,
+        'CUSTOMER_TRANSFER',
+        '2026-08-01T10:01:00.000Z',
+      ),
+      posting(
+        '00000000-0000-4000-8000-000000000002',
+        'CREDIT',
+        125n,
+        'CUSTOMER_TRANSFER',
+        '2026-08-01T10:02:00.000Z',
+      ),
+    ];
+    const result = await build(rows).service.list(customerId, accountId, query);
+    expect(
+      result.transactions.map(({ direction, category }) => ({
+        direction,
+        category,
+      })),
+    ).toEqual([
+      { direction: 'INCOMING', category: 'TRANSFER' },
+      { direction: 'OUTGOING', category: 'TRANSFER' },
+    ]);
+    expect(JSON.stringify(result)).not.toContain('metadata');
+    expect(JSON.stringify(result)).not.toContain('INTERNAL-SECRET');
   });
 
   it('calculates exact historical balances before presentation ordering', async () => {

@@ -8,6 +8,6 @@ import { SessionCustomerResolver } from './session-customer';
   imports: [AuthModule],
   controllers: [AccountsController],
   providers: [LedgerClient, SessionCustomerResolver],
-  exports: [LedgerClient],
+  exports: [LedgerClient, SessionCustomerResolver],
 })
 export class AccountsModule {}

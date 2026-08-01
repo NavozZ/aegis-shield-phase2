@@ -6,13 +6,13 @@ Implemented:
 
 - [`identity`](identity/README.md) — customer identity, Tier-0 onboarding, PIN plus OTP fallback, passkey backend, sessions, and authentication events
 - [`ledger`](ledger/README.md) — customer accounts, immutable double-entry journals, balance projections, idempotency, and reconciliation
+- [`payments`](payments/README.md) — transfer intents, limits, idempotent orchestration, recovery, append-only events, and reconciliation
 
 Planned service areas:
 
-- `payments` — idempotent transfer and payment workflows
 - `threat-detection` — risk signals, scoring, and bounded response
 - `sabcl-proxy` — SABCL metadata-protected communication
 - `notifications` — channel-neutral notification delivery
 - `recovery` — restore, reconciliation, and recovery coordination
 
-Identity owns only the `aegis_identity` database and its Redis namespace; the Ledger owns only the `aegis_ledger` database. Each future stateful service must likewise own its database boundary and expose explicit contracts rather than sharing tables.
+Identity owns `aegis_identity` and its Redis namespace, Ledger owns `aegis_ledger`, and Payments owns `aegis_payments`. Services exchange validated HTTP contracts and never share tables.

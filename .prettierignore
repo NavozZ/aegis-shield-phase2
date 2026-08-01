@@ -11,3 +11,4 @@ out/
 # Prisma client output is regenerated on every build and is not source.
 services/identity/src/generated/
 services/ledger/src/generated/
+services/payments/src/generated/

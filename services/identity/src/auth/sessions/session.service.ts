@@ -152,6 +152,11 @@ export class SessionService {
     };
   }
 
+  /** Reads session ownership without extending the idle or absolute lifetime. */
+  async subject(sessionId: string): Promise<string> {
+    return (await this.read(sessionId)).value.userId;
+  }
+
   async requireCsrf(
     sessionId: string,
     csrfToken: string,

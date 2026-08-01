@@ -5,15 +5,22 @@ import { AuthRateLimitMiddleware } from './common/http/auth-rate-limit.middlewar
 import { CorrelationMiddleware } from './common/http/correlation.middleware';
 import { GatewayConfigModule } from './config/gateway-config.module';
 import { HealthModule } from './health/health.module';
+import { TransfersModule } from './transfers/transfers.module';
 
 @Module({
-  imports: [GatewayConfigModule, AuthModule, AccountsModule, HealthModule],
+  imports: [
+    GatewayConfigModule,
+    AuthModule,
+    AccountsModule,
+    TransfersModule,
+    HealthModule,
+  ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
     consumer.apply(CorrelationMiddleware).forRoutes('*');
     consumer
       .apply(AuthRateLimitMiddleware)
-      .forRoutes('api/v1/auth/*', 'api/v1/accounts/*');
+      .forRoutes('api/v1/auth/*', 'api/v1/accounts/*', 'api/v1/transfers/*');
   }
 }

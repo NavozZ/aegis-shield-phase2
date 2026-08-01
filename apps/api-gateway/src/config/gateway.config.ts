@@ -7,10 +7,13 @@ export interface GatewayConfig {
   identityInternalToken: string;
   ledgerServiceUrl: string;
   ledgerInternalToken: string;
+  paymentsServiceUrl: string;
+  paymentsInternalToken: string;
   sessionCookieName: string;
   csrfCookieName: string;
   identityTimeoutMs: number;
   ledgerTimeoutMs: number;
+  paymentsTimeoutMs: number;
 }
 
 export const GATEWAY_CONFIG = Symbol('GATEWAY_CONFIG');
@@ -44,16 +47,21 @@ export function createGatewayConfig(): GatewayConfig {
     ledgerServiceUrl:
       process.env.LEDGER_SERVICE_URL?.trim() || 'http://127.0.0.1:4102',
     ledgerInternalToken: requiredSetting('LEDGER_INTERNAL_TOKEN'),
+    paymentsServiceUrl:
+      process.env.PAYMENTS_SERVICE_URL?.trim() || 'http://127.0.0.1:4104',
+    paymentsInternalToken: requiredSetting('PAYMENTS_INTERNAL_TOKEN'),
     sessionCookieName:
       process.env.AUTH_SESSION_COOKIE_NAME?.trim() || 'aegis_session',
     csrfCookieName: process.env.AUTH_CSRF_COOKIE_NAME?.trim() || 'aegis_csrf',
     identityTimeoutMs: integerSetting('IDENTITY_HTTP_TIMEOUT_MS', 3_000),
     ledgerTimeoutMs: integerSetting('LEDGER_HTTP_TIMEOUT_MS', 5_000),
+    paymentsTimeoutMs: integerSetting('PAYMENTS_HTTP_TIMEOUT_MS', 5_000),
   };
 
   for (const [name, value] of [
     ['IDENTITY_SERVICE_URL', configuration.identityServiceUrl],
     ['LEDGER_SERVICE_URL', configuration.ledgerServiceUrl],
+    ['PAYMENTS_SERVICE_URL', configuration.paymentsServiceUrl],
   ] as const) {
     if (!['http:', 'https:'].includes(new URL(value).protocol)) {
       throw new Error(`${name} must use HTTP or HTTPS.`);
@@ -64,6 +72,7 @@ export function createGatewayConfig(): GatewayConfig {
       [
         ['IDENTITY_INTERNAL_TOKEN', configuration.identityInternalToken],
         ['LEDGER_INTERNAL_TOKEN', configuration.ledgerInternalToken],
+        ['PAYMENTS_INTERNAL_TOKEN', configuration.paymentsInternalToken],
       ] as const
     ).filter(([, value]) => /change-me|local-only|placeholder/iu.test(value));
     if (placeholders.length > 0) {

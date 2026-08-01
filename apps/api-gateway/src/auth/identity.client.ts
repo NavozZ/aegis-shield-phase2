@@ -16,6 +16,7 @@ export const IDENTITY_ENDPOINTS = {
   passkeyAuthenticationOptions: '/api/v1/auth/passkeys/authentication/options',
   passkeyAuthenticationVerify: '/api/v1/auth/passkeys/authentication/verify',
   ready: '/health/ready',
+  transferStepUp: '/api/v1/auth/transfer-step-up',
 } as const;
 
 export type IdentityEndpoint =

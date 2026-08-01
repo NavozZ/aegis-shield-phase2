@@ -7,7 +7,7 @@ type SafeMetadataValue = string | number | boolean | null;
 export interface AuthEventInput {
   userId?: string;
   eventType: string;
-  outcome: 'SUCCESS' | 'FAILURE' | 'ACCEPTED';
+  outcome: 'SUCCESS' | 'FAILURE' | 'ACCEPTED' | 'LOCKED';
   correlationId: string;
   phone?: string;
   ipHash?: string;

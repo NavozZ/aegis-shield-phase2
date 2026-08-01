@@ -1,20 +1,58 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page, type TestInfo } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 
-const phone = '+12025550127';
 const pin = '628413';
 
+function isolatedPhone(testInfo: TestInfo): string {
+  const suffix = 127 + testInfo.repeatEachIndex * 2 + testInfo.retry;
+  return `+12025550${String(suffix).padStart(3, '0')}`;
+}
+
 async function demoOtp(page: Page): Promise<string> {
-  return (await page.locator('.demo-code').first().textContent())?.trim() || '';
+  const otpInput = page.getByLabel('Six-digit verification code');
+  try {
+    await otpInput.waitFor({ state: 'visible', timeout: 8_000 });
+  } catch {
+    const hasError = await page
+      .getByRole('alert')
+      .first()
+      .isVisible()
+      .catch(() => false);
+    throw new Error(
+      hasError
+        ? 'OTP request reached a safe error summary before the OTP form appeared.'
+        : 'OTP form did not appear after the OTP request completed.',
+    );
+  }
+  const code = page.locator('.demo-code').first();
+  try {
+    await code.waitFor({ state: 'visible', timeout: 8_000 });
+  } catch {
+    throw new Error(
+      'OTP form appeared, but the local demonstration code was absent.',
+    );
+  }
+  const value = (await code.textContent())?.trim() || '';
+  if (!/^\d{6}$/u.test(value))
+    throw new Error('The local demonstration code was malformed.');
+  return value;
 }
 
 /** Onboards the synthetic account-flow customer and lands on the workspace. */
-async function authenticate(page: Page) {
+async function authenticate(page: Page, phone: string) {
   await page.goto('/onboarding');
   await page.getByLabel('Mobile number').fill(phone);
   await page.getByRole('checkbox').check();
+  const otpRequest = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' &&
+      response.url().includes('/api/v1/auth/onboarding/request-otp'),
+  );
   await page.getByRole('button', { name: 'Request verification code' }).click();
+  const otpResponse = await otpRequest;
+  if (otpResponse.status() !== 202)
+    throw new Error(`OTP request failed with status ${otpResponse.status()}.`);
   await page
     .getByLabel('Six-digit verification code')
     .fill(await demoOtp(page));
@@ -108,8 +146,8 @@ test.describe
   .serial('@functional Tier-0 account provisioning browser journey', () => {
   test('creates one Tier-0 account, persists it across a reload and protects it after logout', async ({
     page,
-  }) => {
-    await authenticate(page);
+  }, testInfo) => {
+    await authenticate(page, isolatedPhone(testInfo));
 
     // 1. The workspace starts with no account.
     await expect(page.getByText('No account created yet')).toBeVisible();
@@ -126,7 +164,12 @@ test.describe
     await expect(maskedReference).toBeVisible();
     await expect(page.getByText('LKR 0.00')).toBeVisible();
     await expect(page.getByText('Tier-0 wallet')).toBeVisible();
-    await expect(page.getByText('Transfers coming in Prompt 07')).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: 'Receive money' }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('link', { name: 'Send from this account' }),
+    ).toBeVisible();
     const reference = (await maskedReference.textContent())?.trim();
     expect(reference).toMatch(/^AEGIS-\*{4}-\*{4}-[A-Z0-9]{4}$/u);
 
@@ -205,9 +248,10 @@ test.describe
     await expect(page.getByRole('status')).toContainText(/not found/iu);
     await page.goto('/app');
 
-    // The full reference and internal identifiers never reach the page.
+    // The owner can see the receiving reference, but internal identifiers never
+    // reach the page.
     await expect(page.locator('body')).not.toContainText(
-      /AEGIS-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}/u,
+      /ledgerAccountId|customerId|createdBy|correlationId|metadata/u,
     );
 
     // 6. Logging out and confirming the protected route redirects.

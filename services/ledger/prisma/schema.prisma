@@ -40,6 +40,7 @@ enum JournalEntryType {
   ACCOUNT_ADJUSTMENT
   SETTLEMENT_FUNDING
   INTERNAL_TEST
+  CUSTOMER_TRANSFER
 }
 
 enum JournalStatus {
