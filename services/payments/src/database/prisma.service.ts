@@ -10,33 +10,38 @@ import {
   PAYMENTS_CONFIG,
   type PaymentsConfig,
 } from '../common/config/payments.config';
+
 @Injectable()
 export class PrismaService implements OnModuleInit, OnModuleDestroy {
   readonly client: PrismaClient;
+
   constructor(@Inject(PAYMENTS_CONFIG) config: PaymentsConfig) {
     const schema =
       new URL(config.databaseUrl).searchParams.get('schema') || 'app';
-    if (!/^[a-z_][a-z0-9_]*$/u.test(schema))
+    if (!/^[a-z_][a-z0-9_]*$/u.test(schema)) {
       throw new Error('Payments database schema is invalid.');
-    this.client = new PrismaClient({
-      adapter: new PrismaPg(
-        {
-          connectionString: config.databaseUrl,
-          connectionTimeoutMillis: 5000,
-          idleTimeoutMillis: 30000,
-          max: 10,
-        },
-        { schema },
-      ),
-    });
+    }
+    const adapter = new PrismaPg(
+      {
+        connectionString: config.databaseUrl,
+        connectionTimeoutMillis: 5_000,
+        idleTimeoutMillis: 30_000,
+        max: 10,
+      },
+      { schema },
+    );
+    this.client = new PrismaClient({ adapter });
   }
-  async onModuleInit() {
+
+  async onModuleInit(): Promise<void> {
     await this.client.$connect();
   }
-  async onModuleDestroy() {
+
+  async onModuleDestroy(): Promise<void> {
     await this.client.$disconnect();
   }
-  async isHealthy() {
+
+  async isHealthy(): Promise<boolean> {
     try {
       await this.client.$queryRaw`SELECT 1`;
       return true;

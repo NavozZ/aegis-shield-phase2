@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { AccountPanel } from '@/components/accounts/account-panel';
 import { RecentActivity } from '@/components/accounts/recent-activity';
-import { EmptyFeatureCard, SessionCard } from '@/components/ui/session-card';
+import { SessionCard } from '@/components/ui/session-card';
 import { getServerAccount } from '@/lib/accounts/server-accounts';
 import { getServerTransactions } from '@/lib/accounts/server-transactions';
 import { getServerSession } from '@/lib/auth/server-session';
@@ -18,10 +18,7 @@ export default async function WorkspacePage() {
     accountState.status === 'ready' && accountState.account
       ? await getServerTransactions(accountState.account.id, '?pageSize=5')
       : undefined;
-  const cards = [
-    [dictionary.qrCard, dictionary.comingLater],
-    [dictionary.recoveryCard, dictionary.comingLater],
-  ];
+
   return (
     <div className="workspace-content">
       <div className="workspace-title">
@@ -65,9 +62,21 @@ export default async function WorkspacePage() {
           <h2>{dictionary.transfersCard}</h2>
           <p>Send or receive secure customer transfers.</p>
         </Link>
-        {cards.map(([title, status]) => (
-          <EmptyFeatureCard key={title} title={title} status={status} />
-        ))}
+        <Link className="feature-card" href="/app/channels/qr">
+          <span aria-hidden="true">📷</span>
+          <h2>QR Pay</h2>
+          <p>Scan a QR code to pay instantly.</p>
+        </Link>
+        <Link className="feature-card" href="/app/channels/agent">
+          <span aria-hidden="true">🏪</span>
+          <h2>Agent Operations</h2>
+          <p>Perform Cash-In and Cash-Out transactions.</p>
+        </Link>
+        <Link className="feature-card" href="/app/channels/ussd">
+          <span aria-hidden="true">📱</span>
+          <h2>USSD Banking</h2>
+          <p>Simulate a mobile phone USSD session.</p>
+        </Link>
       </section>
     </div>
   );

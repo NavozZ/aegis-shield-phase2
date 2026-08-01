@@ -41,6 +41,11 @@ const config: PaymentsConfig = {
   riskInternalToken: 'test-only-risk-token',
   riskPaymentsSourceToken: 'test-only-payments-source',
   riskTimeoutMs: 1000,
+  qrSigningKey: 'test-key',
+  qrDynamicTtlSeconds: 300,
+  qrStaticTtlHours: 8760,
+  redisUrl: 'redis://localhost:6379',
+  redisKeyPrefix: 'aegis:',
 };
 
 function intent(overrides: Record<string, unknown> = {}) {

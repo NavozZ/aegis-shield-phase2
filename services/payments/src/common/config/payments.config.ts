@@ -21,6 +21,11 @@ export interface PaymentsConfig {
   riskInternalToken: string;
   riskPaymentsSourceToken: string;
   riskTimeoutMs: number;
+  qrSigningKey: string;
+  qrDynamicTtlSeconds: number;
+  qrStaticTtlHours: number;
+  redisUrl: string;
+  redisKeyPrefix: string;
 }
 export const PAYMENTS_CONFIG = Symbol('PAYMENTS_CONFIG');
 
@@ -85,6 +90,14 @@ export function createPaymentsConfig(): PaymentsConfig {
       process.env.RISK_PAYMENTS_SOURCE_TOKEN?.trim() ||
       'local-only-risk-payments-source-change-me',
     riskTimeoutMs: integer('RISK_HTTP_TIMEOUT_MS', 2_000, 100),
+    qrSigningKey: required('PAYMENTS_QR_SIGNING_KEY'),
+    qrDynamicTtlSeconds: integer('PAYMENTS_QR_DYNAMIC_TTL_SECONDS', 300),
+    qrStaticTtlHours: integer('PAYMENTS_QR_STATIC_TTL_HOURS', 8760),
+    redisUrl:
+      process.env.REDIS_URL?.trim() ||
+      'redis://:aegis-local-redis-change-me@127.0.0.1:6379/0',
+    redisKeyPrefix:
+      process.env.PAYMENTS_REDIS_PREFIX?.trim() || 'aegis:payments:',
   };
   if (
     config.minTransferMinor > config.maxTransferMinor ||
@@ -104,6 +117,7 @@ export function createPaymentsConfig(): PaymentsConfig {
       config.databaseUrl,
       config.riskInternalToken,
       config.riskPaymentsSourceToken,
+      config.qrSigningKey,
     ].some((value) =>
       /change-me|local-only|placeholder|example-only/iu.test(value),
     )

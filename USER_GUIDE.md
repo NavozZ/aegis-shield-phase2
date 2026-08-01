@@ -228,7 +228,58 @@ To be completed during implementation. Threat detection and quarantine are not p
 
 ## SABCL demonstration
 
-To be completed during implementation. SABCL communication is not part of Prompt 01.
+Implemented in Prompt 09. Full walkthrough:
+[docs/demo/sabcl-routing-demo.md](docs/demo/sabcl-routing-demo.md).
+
+### Setting it up locally
+
+`.env.example` ships placeholders, which strict mode refuses. Generate real
+material:
+
+```bash
+for service in gateway identity ledger payments sabcl-router; do
+  pnpm sabcl:keys -- --service "$service" --version 1
+done
+pnpm sabcl:keys -- --route-secret
+```
+
+Copy the printed `SABCL_*` private lines into your ignored `.env`, collect the
+public JSON entries into `SABCL_PEERS`, and set:
+
+```
+SABCL_MODE=strict
+```
+
+Then `pnpm build && pnpm stack:start`. The router starts on port 4103 between the
+services and the gateway.
+
+`SABCL_MODE` accepts `strict` (encrypted, no fallback), `compatible` (documented
+local fallback, refused in production) or `off` (pre-Prompt-09 direct calls).
+
+### Viewing the status
+
+Sign in, then open **SABCL** in the workspace navigation, or
+<http://localhost:3000/app/sabcl>. It shows the mode, protocol version,
+abbreviated key fingerprints, rotation state, capability health, replay state and
+envelope counters. It shows no keys, no route tokens, no destinations and no
+payloads.
+
+### Verifying the privacy claims
+
+```bash
+pnpm sabcl:test:leakage       # no seeded sensitive value appears in an envelope
+pnpm sabcl:test               # tampering, expiry, wrong recipient, rotation
+pnpm sabcl:test:integration   # replay across router instances (needs infra:up)
+pnpm sabcl:test:e2e           # full encrypted journey        (needs infra:up)
+```
+
+### What it does not protect
+
+Padding hides exact payload size within a bucket only — timing, frequency and
+order-of-magnitude size stay visible. Nothing protects a payload once the
+recipient decrypts it. Keys live in process memory, not an HSM. This is an
+internal layer between known services, not an anonymity network. See
+[docs/security/sabcl-metadata-leakage.md](docs/security/sabcl-metadata-leakage.md).
 
 ## Recovery demonstration
 

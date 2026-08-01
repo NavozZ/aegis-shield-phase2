@@ -41,6 +41,9 @@ enum JournalEntryType {
   SETTLEMENT_FUNDING
   INTERNAL_TEST
   CUSTOMER_TRANSFER
+  QR_PAYMENT
+  AGENT_CASH_IN
+  AGENT_CASH_OUT
 }
 
 enum JournalStatus {
@@ -50,6 +53,7 @@ enum JournalStatus {
 enum SystemAccountType {
   PLATFORM_SETTLEMENT_ASSET
   CUSTOMER_FUNDS_LIABILITY_CONTROL
+  AGENT_FLOAT
 }
 
 enum ActorType {

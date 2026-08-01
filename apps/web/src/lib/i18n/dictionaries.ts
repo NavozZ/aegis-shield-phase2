@@ -187,6 +187,34 @@ const en = {
   transfersPrompt07: 'Transfers coming in Prompt 07',
   transactionDisclaimer:
     'This is a synthetic prototype record, not proof of payment or a financial instrument.',
+  sabclTitle: 'SABCL metadata protection',
+  sabclIntro:
+    'Operational status of the Security-Aware Blind Communication Layer, which encrypts service-to-service payloads so the router that forwards them cannot read them.',
+  sabclScopeTitle: 'What this page does and does not show',
+  sabclScopeBody:
+    'This page reports the state of controls implemented in this repository. It is a status view, not a security control, and it does not measure network-level protections outside this system.',
+  sabclMode: 'Mode',
+  sabclStrictOn: 'Strict — every integrated call is encrypted and routed',
+  sabclStrictOff: 'Not strict — a documented local fallback is permitted',
+  sabclProtocol: 'Protocol version',
+  sabclGatewayKey: 'Gateway key',
+  sabclRouterKey: 'Router key',
+  sabclRotation: 'Key rotation',
+  sabclActiveKey: 'Active',
+  sabclAcceptedKeys: 'Accepted',
+  sabclRevokedKeys: 'Revoked',
+  sabclRoutes: 'Privacy-preserving routes',
+  sabclReachability: 'Route health',
+  sabclReachable: 'Reachable',
+  sabclUnreachable: 'Unreachable',
+  sabclCounters: 'Envelope outcomes',
+  sabclReplayState: 'Replay protection',
+  sabclPadding: 'Padding policy',
+  sabclUnavailable: 'SABCL status is unavailable',
+  sabclUnavailableBody:
+    'The gateway could not reach the router. Encrypted calls fail closed while this is the case; nothing falls back to an unencrypted path in strict mode.',
+  sabclDisclaimer:
+    'Implemented here: payload encryption, integrity, sender authenticity, route binding, expiry, replay protection and size padding. Not claimed: protection against a compromised endpoint after decryption, resistance to traffic analysis beyond the padding shown, internet-level anonymity, or hardware key protection.',
 } as const;
 
 export type TranslationKey = keyof typeof en;
@@ -370,6 +398,34 @@ const si: Dictionary = {
   transfersPrompt07: 'හුවමාරු Prompt 07 හි පැමිණේ',
   transactionDisclaimer:
     'මෙය කෘතිම මූලාකෘති වාර්තාවක් පමණි; ගෙවීමේ සාක්ෂියක් හෝ මූල්‍ය උපකරණයක් නොවේ.',
+  sabclTitle: 'SABCL පාරදත්ත ආරක්ෂණය',
+  sabclIntro:
+    'ආරක්ෂාව-දැනුවත් අන්ධ සන්නිවේදන ස්තරයේ ක්‍රියාකාරී තත්ත්වය. එය සේවා අතර දත්ත සංකේතනය කරයි, එබැවින් ඒවා යොමු කරන රවුටරයට ඒවා කියවිය නොහැක.',
+  sabclScopeTitle: 'මෙම පිටුව පෙන්වන දේ සහ නොපෙන්වන දේ',
+  sabclScopeBody:
+    'මෙම පිටුව මෙම ගබඩාවේ ක්‍රියාත්මක කර ඇති පාලන තත්ත්වය වාර්තා කරයි. එය තත්ත්ව දර්ශනයක් මිස ආරක්ෂක පාලනයක් නොවේ, තවද මෙම පද්ධතියෙන් පිටත ජාල මට්ටමේ ආරක්ෂාව එය නොමනිනු ලබයි.',
+  sabclMode: 'ප්‍රකාරය',
+  sabclStrictOn: 'දැඩි — සෑම ඒකාබද්ධ ඇමතුමක්ම සංකේතනය කර යොමු කෙරේ',
+  sabclStrictOff: 'දැඩි නොවේ — ලේඛනගත දේශීය ආපසු යාමක් අවසර ඇත',
+  sabclProtocol: 'ප්‍රොටෝකෝල අනුවාදය',
+  sabclGatewayKey: 'ගේට්වේ යතුර',
+  sabclRouterKey: 'රවුටර යතුර',
+  sabclRotation: 'යතුරු කරකැවීම',
+  sabclActiveKey: 'ක්‍රියාකාරී',
+  sabclAcceptedKeys: 'පිළිගත්',
+  sabclRevokedKeys: 'අවලංගු කළ',
+  sabclRoutes: 'පෞද්ගලිකත්වය ආරක්ෂා කරන මාර්ග',
+  sabclReachability: 'මාර්ග සෞඛ්‍යය',
+  sabclReachable: 'ළඟා විය හැක',
+  sabclUnreachable: 'ළඟා විය නොහැක',
+  sabclCounters: 'ලියුම් කවර ප්‍රතිඵල',
+  sabclReplayState: 'නැවත ධාවන ආරක්ෂණය',
+  sabclPadding: 'පෑඩින් ප්‍රතිපත්තිය',
+  sabclUnavailable: 'SABCL තත්ත්වය නොමැත',
+  sabclUnavailableBody:
+    'ගේට්වේට රවුටරයට ළඟා විය නොහැකි විය. මෙම තත්ත්වයේදී සංකේතිත ඇමතුම් ආරක්ෂිතව අසමත් වේ; දැඩි ප්‍රකාරයේදී කිසිවක් සංකේතනය නොකළ මාර්ගයකට ආපසු නොයයි.',
+  sabclDisclaimer:
+    'මෙහි ක්‍රියාත්මක කර ඇත: දත්ත සංකේතනය, අඛණ්ඩතාව, යවන්නාගේ සත්‍යතාව, මාර්ග බන්ධනය, කල් ඉකුත්වීම, නැවත ධාවන ආරක්ෂණය සහ ප්‍රමාණ පෑඩින්. හිමිකම් නොපානු ලබයි: විකේතනයෙන් පසු සම්මුතියට පත් අන්ත ලක්ෂ්‍යයකට එරෙහි ආරක්ෂාව, පෙන්වා ඇති පෑඩින්වලට ඔබ්බෙන් ගමනාගමන විශ්ලේෂණයට ප්‍රතිරෝධය, අන්තර්ජාල මට්ටමේ නිර්නාමිකත්වය, හෝ දෘඪාංග යතුරු ආරක්ෂාව.',
 };
 
 const ta: Dictionary = {
@@ -562,6 +618,36 @@ const ta: Dictionary = {
   transfersPrompt07: 'பரிமாற்றங்கள் Prompt 07-இல் வரும்',
   transactionDisclaimer:
     'இது செயற்கை முன்மாதிரி பதிவு மட்டுமே; கட்டணச் சான்றோ நிதிக் கருவியோ அல்ல.',
+  sabclTitle: 'SABCL மேனிலைத் தரவுப் பாதுகாப்பு',
+  sabclIntro:
+    'பாதுகாப்பு-உணர் குருட்டுத் தொடர்பு அடுக்கின் செயல்பாட்டு நிலை. இது சேவைகளுக்கு இடையிலான தரவை மறையாக்குகிறது, எனவே அதை அனுப்பும் திசைவியால் படிக்க முடியாது.',
+  sabclScopeTitle: 'இந்தப் பக்கம் காட்டுவதும் காட்டாததும்',
+  sabclScopeBody:
+    'இந்தப் பக்கம் இந்தக் களஞ்சியத்தில் செயல்படுத்தப்பட்ட கட்டுப்பாடுகளின் நிலையைத் தெரிவிக்கிறது. இது ஒரு நிலைக் காட்சியே தவிர பாதுகாப்புக் கட்டுப்பாடு அல்ல, மேலும் இந்த அமைப்புக்கு வெளியே உள்ள வலைப்பின்னல் அளவிலான பாதுகாப்புகளை இது அளவிடுவதில்லை.',
+  sabclMode: 'முறை',
+  sabclStrictOn:
+    'கண்டிப்பானது — ஒவ்வொரு ஒருங்கிணைந்த அழைப்பும் மறையாக்கப்பட்டு அனுப்பப்படுகிறது',
+  sabclStrictOff:
+    'கண்டிப்பானது அல்ல — ஆவணப்படுத்தப்பட்ட உள்ளூர் மாற்று அனுமதிக்கப்படுகிறது',
+  sabclProtocol: 'நெறிமுறைப் பதிப்பு',
+  sabclGatewayKey: 'நுழைவாயில் திறவுகோல்',
+  sabclRouterKey: 'திசைவி திறவுகோல்',
+  sabclRotation: 'திறவுகோல் சுழற்சி',
+  sabclActiveKey: 'செயலில்',
+  sabclAcceptedKeys: 'ஏற்கப்பட்டவை',
+  sabclRevokedKeys: 'ரத்து செய்யப்பட்டவை',
+  sabclRoutes: 'தனியுரிமையைப் பாதுகாக்கும் வழிகள்',
+  sabclReachability: 'வழி நலன்',
+  sabclReachable: 'அணுகக்கூடியது',
+  sabclUnreachable: 'அணுக முடியாதது',
+  sabclCounters: 'உறை முடிவுகள்',
+  sabclReplayState: 'மறுஇயக்கப் பாதுகாப்பு',
+  sabclPadding: 'நிரப்புக் கொள்கை',
+  sabclUnavailable: 'SABCL நிலை கிடைக்கவில்லை',
+  sabclUnavailableBody:
+    'நுழைவாயிலால் திசைவியை அணுக முடியவில்லை. இந்நிலையில் மறையாக்கப்பட்ட அழைப்புகள் பாதுகாப்பாகத் தோல்வியடைகின்றன; கண்டிப்பான முறையில் எதுவும் மறையாக்கப்படாத பாதைக்குத் திரும்புவதில்லை.',
+  sabclDisclaimer:
+    'இங்கு செயல்படுத்தப்பட்டவை: தரவு மறையாக்கம், ஒருமைப்பாடு, அனுப்புநர் நம்பகத்தன்மை, வழிப் பிணைப்பு, காலாவதி, மறுஇயக்கப் பாதுகாப்பு மற்றும் அளவு நிரப்புதல். உரிமை கோரப்படாதவை: மறைவிலக்கத்திற்குப் பிறகு சமரசம் செய்யப்பட்ட முனையத்திற்கு எதிரான பாதுகாப்பு, காட்டப்பட்ட நிரப்புதலுக்கு அப்பாற்பட்ட போக்குவரத்து பகுப்பாய்வு எதிர்ப்பு, இணைய அளவிலான அநாமதேயம், அல்லது வன்பொருள் திறவுகோல் பாதுகாப்பு.',
 };
 
 export const dictionaries: Record<Language, Dictionary> = {

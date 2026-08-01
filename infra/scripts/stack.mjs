@@ -68,7 +68,20 @@ const SECRET_NAMES = [
   'RISK_OPERATOR_BOOTSTRAP_TOKEN',
   'FIELD_ENCRYPTION_KEY',
   'SERVICE_AUTH_SHARED_SECRET',
-  'SABCL_KEY_MATERIAL',
+  // SABCL private key material and the route-token secret. Every one of these
+  // must be redacted from stack output: a private key echoed into a terminal
+  // scrollback is a compromised key.
+  'SABCL_ROUTE_SECRET',
+  'SABCL_GATEWAY_ENCRYPTION_PRIVATE_KEY',
+  'SABCL_GATEWAY_SIGNING_PRIVATE_KEY',
+  'SABCL_IDENTITY_ENCRYPTION_PRIVATE_KEY',
+  'SABCL_IDENTITY_SIGNING_PRIVATE_KEY',
+  'SABCL_LEDGER_ENCRYPTION_PRIVATE_KEY',
+  'SABCL_LEDGER_SIGNING_PRIVATE_KEY',
+  'SABCL_PAYMENTS_ENCRYPTION_PRIVATE_KEY',
+  'SABCL_PAYMENTS_SIGNING_PRIVATE_KEY',
+  'SABCL_ROUTER_ENCRYPTION_PRIVATE_KEY',
+  'SABCL_ROUTER_SIGNING_PRIVATE_KEY',
   'IDENTITY_DATABASE_URL',
   'LEDGER_DATABASE_URL',
   'PAYMENTS_DATABASE_URL',
@@ -106,6 +119,24 @@ const services = [
     entry: resolve(repositoryRoot, 'services', 'payments', 'dist', 'main.js'),
     cwd: resolve(repositoryRoot, 'services', 'payments'),
     readiness: `http://127.0.0.1:${environment.PAYMENTS_SERVICE_PORT || 4104}/health/live`,
+  },
+  // The blind router starts after the services it forwards to and before the
+  // gateway that sends through it, so a strict-mode gateway comes up with a
+  // reachable router rather than failing its first call.
+  {
+    name: 'SABCL router',
+    entry: resolve(
+      repositoryRoot,
+      'services',
+      'sabcl-router',
+      'dist',
+      'main.js',
+    ),
+    cwd: resolve(repositoryRoot, 'services', 'sabcl-router'),
+    readiness: `http://127.0.0.1:${environment.SABCL_ROUTER_PORT || 4103}/health/live`,
+    // Nothing to route when SABCL is not configured, and the router refuses to
+    // start in that case, so it is skipped rather than reported as broken.
+    skip: () => (environment.SABCL_MODE || 'off').trim() === 'off',
   },
   {
     name: 'Risk',
@@ -200,6 +231,12 @@ for (const signal of ['SIGINT', 'SIGTERM']) {
 
 try {
   for (const service of services) {
+    if (service.skip?.()) {
+      process.stdout.write(
+        `[stack] skipping ${service.name} (not configured)\n`,
+      );
+      continue;
+    }
     if (!existsSync(service.entry)) {
       throw new Error(
         `${service.name} build output is missing. Run "pnpm build" first.`,
@@ -210,8 +247,12 @@ try {
     await waitForReadiness(service, child);
     process.stdout.write(`[stack] ${service.name} ready\n`);
   }
+  const sabclNote =
+    (environment.SABCL_MODE || 'off').trim() === 'off'
+      ? ''
+      : `, SABCL router ${environment.SABCL_ROUTER_PORT || 4103}`;
   process.stdout.write(
-    '[stack] Web 3000, Gateway 4000, Identity 4101, Ledger 4102, Payments 4104, Risk 4105 — press Ctrl+C to stop\n',
+    `[stack] Web 3000, Gateway 4000, Identity 4101, Ledger 4102, Payments 4104${sabclNote}, Risk ${environment.RISK_SERVICE_PORT || 4105} — press Ctrl+C to stop\n`,
   );
 } catch (error) {
   process.stderr.write(

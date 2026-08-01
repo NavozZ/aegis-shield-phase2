@@ -1,7 +1,9 @@
+import { SabclError } from '@aegis/sabcl';
 import { HttpException, HttpStatus, Inject, Injectable } from '@nestjs/common';
 import type { z } from 'zod';
 import { GATEWAY_CONFIG, type GatewayConfig } from '../config/gateway.config';
 import type { RequestContext } from '../common/http/request-context';
+import { SabclTransportService } from '../sabcl/sabcl-transport.service';
 
 export const PAYMENTS_ENDPOINTS = {
   policy: '/internal/transfer-policy',
@@ -13,13 +15,93 @@ export const PAYMENTS_ENDPOINTS = {
     `/internal/customers/${encodeURIComponent(customerId)}/transfers${query}`,
   transfer: (customerId: string, id: string) =>
     `/internal/customers/${encodeURIComponent(customerId)}/transfers/${encodeURIComponent(id)}`,
+
+  // Channels
+  qrIssue: '/internal/qr/issue',
+  qrPreview: '/internal/qr/preview',
+  qrRedeem: '/internal/qr/redeem',
+  agentCashInPreview: '/internal/agent/cash-in/preview',
+  agentCashOutPreview: '/internal/agent/cash-out/preview',
+  agentCashConfirm: '/internal/agent/cash/confirm',
+  agentStatus: (agentId: string, operationId: string) =>
+    `/internal/agent/${encodeURIComponent(agentId)}/cash/${encodeURIComponent(operationId)}/status`,
+
   ready: '/health/ready',
 } as const;
 
 @Injectable()
 export class PaymentsClient {
-  constructor(@Inject(GATEWAY_CONFIG) private readonly config: GatewayConfig) {}
+  constructor(
+    @Inject(GATEWAY_CONFIG) private readonly config: GatewayConfig,
+    private readonly sabcl: SabclTransportService,
+  ) {}
+
   async request<T extends z.ZodType>(
+    path: string,
+    method: 'GET' | 'POST',
+    schema: T,
+    request: RequestContext,
+    options: { body?: unknown; customerId?: string } = {},
+  ): Promise<z.output<T>> {
+    if (this.sabcl.enabled) {
+      return this.requestThroughSabcl(path, method, schema, request, options);
+    }
+    return this.requestDirect(path, method, schema, request, options);
+  }
+
+  /**
+   * Encrypted path for transfer orchestration.
+   *
+   * This is the traffic the layer exists for: amounts, recipient references and
+   * PIN authorisation all travel inside the ciphertext, so the router forwarding
+   * a confirmation cannot distinguish it from a policy read.
+   */
+  private async requestThroughSabcl<T extends z.ZodType>(
+    path: string,
+    method: 'GET' | 'POST',
+    schema: T,
+    request: RequestContext,
+    options: { body?: unknown; customerId?: string },
+  ): Promise<z.output<T>> {
+    try {
+      const response = await this.sabcl.call({
+        capability: 'payments.transfer',
+        operation: `payments.transfer.${method.toLowerCase()}`,
+        method,
+        path,
+        body: options.body,
+        customerId: options.customerId,
+        correlationId: request.correlationId,
+      });
+      if (response.status >= 400) {
+        throw new HttpException(
+          response.body ?? { error: { code: 'PAYMENTS_UNAVAILABLE' } },
+          response.status,
+        );
+      }
+      const parsed = schema.safeParse(response.body);
+      if (!parsed.success) {
+        throw new HttpException(
+          { error: { code: 'PAYMENTS_UNAVAILABLE' } },
+          HttpStatus.SERVICE_UNAVAILABLE,
+        );
+      }
+      return parsed.data;
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      if (error instanceof SabclError && !this.sabcl.strict) {
+        // Compatible mode only. Strict mode never falls back.
+        return this.requestDirect(path, method, schema, request, options);
+      }
+      throw new HttpException(
+        { error: { code: 'PAYMENTS_UNAVAILABLE' } },
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
+  }
+
+  /** The pre-SABCL direct internal call. Unchanged. */
+  private async requestDirect<T extends z.ZodType>(
     path: string,
     method: 'GET' | 'POST',
     schema: T,

@@ -132,6 +132,47 @@ test('@a11y authentication surfaces have no serious or critical axe violations',
   await page.goto('/app/security');
   await expectAccessible(page, 'security settings page');
 
+  // SABCL operator status. Checked with the router unavailable, which is the
+  // state it is in for this run — the page must be accessible when reporting an
+  // outage, not only when everything is green.
+  await page.goto('/app/sabcl');
+  await expectAccessible(page, 'SABCL operator status page');
+  await expect(
+    page.getByRole('heading', { level: 1, name: /SABCL/u }),
+  ).toBeVisible();
+  await page.setViewportSize({ width: 320, height: 800 });
+  await expectAccessible(page, '320px SABCL operator status page');
+  // Wide content must scroll inside its own container; the page body must not.
+  const bodyOverflows = await page.evaluate(
+    () => document.documentElement.scrollWidth > window.innerWidth + 1,
+  );
+  expect(bodyOverflows, 'SABCL page must not scroll horizontally').toBe(false);
+  await page.setViewportSize({ width: 1280, height: 800 });
+  // The nav link must be reachable and operable by keyboard alone: focusable by
+  // tabbing, and activated by Enter rather than needing a pointer.
+  await page.goto('/app');
+  const sabclLink = page.getByRole('link', { name: 'SABCL' });
+  await expect(sabclLink).toBeVisible();
+  let tabsToReach = 0;
+  while (
+    tabsToReach < 30 &&
+    !(await sabclLink.evaluate((node) => node === document.activeElement))
+  ) {
+    await page.keyboard.press('Tab');
+    tabsToReach += 1;
+  }
+  expect(
+    await sabclLink.evaluate((node) => node === document.activeElement),
+    'SABCL nav link must be reachable by tabbing',
+  ).toBe(true);
+  await page.keyboard.press('Enter');
+  await expect(page).toHaveURL(/\/app\/sabcl$/u);
+  await page.getByLabel('Interface language').selectOption('SI');
+  await expectAccessible(page, 'Sinhala SABCL operator status page');
+  await page.getByLabel('අතුරුමුහුණත් භාෂාව').selectOption('TA');
+  await expectAccessible(page, 'Tamil SABCL operator status page');
+  await page.getByLabel('இடைமுக மொழி').selectOption('EN');
+
   await page.goto('/app/transfers');
   await expectAccessible(page, 'transfer list');
   await page.setViewportSize({ width: 320, height: 800 });

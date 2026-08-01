@@ -66,6 +66,9 @@ export const journalEntryTypeSchema = z.enum([
   'SETTLEMENT_FUNDING',
   'INTERNAL_TEST',
   'CUSTOMER_TRANSFER',
+  'QR_PAYMENT',
+  'AGENT_CASH_IN',
+  'AGENT_CASH_OUT',
 ]);
 export type JournalEntryType = z.infer<typeof journalEntryTypeSchema>;
 
