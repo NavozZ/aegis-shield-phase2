@@ -15,14 +15,15 @@ Both host ports are configurable through `.env`, but remain bound to loopback. P
 
 ## Prototype database isolation
 
-One local PostgreSQL container hosts four databases to keep the development footprint small:
+One local PostgreSQL container hosts five databases to keep the development footprint small:
 
-| Database         | Owning login role |
-| ---------------- | ----------------- |
-| `aegis_identity` | `aegis_identity`  |
-| `aegis_ledger`   | `aegis_ledger`    |
-| `aegis_payments` | `aegis_payments`  |
-| `aegis_audit`    | `aegis_audit`     |
+| Database           | Owning login role  |
+| ------------------ | ------------------ |
+| `aegis_identity`   | `aegis_identity`   |
+| `aegis_ledger`     | `aegis_ledger`     |
+| `aegis_payments`   | `aegis_payments`   |
+| `aegis_audit`      | `aegis_audit`      |
+| `aegis_resilience` | `aegis_resilience` |
 
 Each login owns only its matching database and its `app` schema. Service roles cannot create roles or databases, replicate, bypass row-level security, or inherit other role permissions. Default public database connections are revoked. The local administrative role retains maintenance access.
 
@@ -87,6 +88,27 @@ pnpm infra:reset -- --yes
 ```
 
 Do not use reset when local prototype data must be retained.
+
+## Backups
+
+`pnpm dr:backup` captures all five databases with `pg_dump`, encrypts each file
+with AES-256-GCM and writes a checksummed manifest. It requires
+`DR_BACKUP_ENCRYPTION_KEY` in `.env` and a `pg_dump` at least as new as the
+container's PostgreSQL 17.
+
+Sets land in `.dr-backups/`, or `$DR_BACKUP_DIR` when set. Both are git-ignored:
+a backup set is customer data under a key, and committing one would put the whole
+platform's contents in git history.
+
+Redis is deliberately not backed up. Its cache, replay and velocity state is
+recreatable, so preserving it would add nothing a restore could not rebuild while
+widening what a stolen set exposes.
+
+`pnpm dr:restore:verify` proves a set restores, into freshly named disposable
+databases only. It cannot be pointed at a live service database — targets are
+generated names checked against the live database names, and dropped afterwards.
+
+See the [backup and restore runbook](../docs/operations/backup-restore-runbook.md).
 
 ## Initialization behavior
 

@@ -7,7 +7,7 @@ if (set -o pipefail) 2>/dev/null; then
   set -o pipefail
 fi
 
-required_variables='POSTGRES_USER POSTGRES_DB IDENTITY_DB_NAME IDENTITY_DB_USER IDENTITY_DB_PASSWORD LEDGER_DB_NAME LEDGER_DB_USER LEDGER_DB_PASSWORD PAYMENTS_DB_NAME PAYMENTS_DB_USER PAYMENTS_DB_PASSWORD AUDIT_DB_NAME AUDIT_DB_USER AUDIT_DB_PASSWORD'
+required_variables='POSTGRES_USER POSTGRES_DB IDENTITY_DB_NAME IDENTITY_DB_USER IDENTITY_DB_PASSWORD LEDGER_DB_NAME LEDGER_DB_USER LEDGER_DB_PASSWORD PAYMENTS_DB_NAME PAYMENTS_DB_USER PAYMENTS_DB_PASSWORD AUDIT_DB_NAME AUDIT_DB_USER AUDIT_DB_PASSWORD RESILIENCE_DB_NAME RESILIENCE_DB_USER RESILIENCE_DB_PASSWORD'
 
 for variable_name in $required_variables; do
   eval "variable_value=\"\${$variable_name-}\""
@@ -29,7 +29,7 @@ validate_identifier() {
   esac
 }
 
-for variable_name in POSTGRES_USER POSTGRES_DB IDENTITY_DB_NAME IDENTITY_DB_USER LEDGER_DB_NAME LEDGER_DB_USER PAYMENTS_DB_NAME PAYMENTS_DB_USER AUDIT_DB_NAME AUDIT_DB_USER; do
+for variable_name in POSTGRES_USER POSTGRES_DB IDENTITY_DB_NAME IDENTITY_DB_USER LEDGER_DB_NAME LEDGER_DB_USER PAYMENTS_DB_NAME PAYMENTS_DB_USER AUDIT_DB_NAME AUDIT_DB_USER RESILIENCE_DB_NAME RESILIENCE_DB_USER; do
   validate_identifier "$variable_name"
 done
 
@@ -49,17 +49,17 @@ ensure_unique_identifiers() {
   done
 }
 
-ensure_unique_identifiers databases "$IDENTITY_DB_NAME" "$LEDGER_DB_NAME" "$PAYMENTS_DB_NAME" "$AUDIT_DB_NAME"
-ensure_unique_identifiers roles "$IDENTITY_DB_USER" "$LEDGER_DB_USER" "$PAYMENTS_DB_USER" "$AUDIT_DB_USER"
+ensure_unique_identifiers databases "$IDENTITY_DB_NAME" "$LEDGER_DB_NAME" "$PAYMENTS_DB_NAME" "$AUDIT_DB_NAME" "$RESILIENCE_DB_NAME"
+ensure_unique_identifiers roles "$IDENTITY_DB_USER" "$LEDGER_DB_USER" "$PAYMENTS_DB_USER" "$AUDIT_DB_USER" "$RESILIENCE_DB_USER"
 
-for database_name in "$IDENTITY_DB_NAME" "$LEDGER_DB_NAME" "$PAYMENTS_DB_NAME" "$AUDIT_DB_NAME"; do
+for database_name in "$IDENTITY_DB_NAME" "$LEDGER_DB_NAME" "$PAYMENTS_DB_NAME" "$AUDIT_DB_NAME" "$RESILIENCE_DB_NAME"; do
   if [ "$database_name" = "$POSTGRES_DB" ]; then
     printf 'A service database cannot reuse the administrative database name.\n' >&2
     exit 1
   fi
 done
 
-for role_name in "$IDENTITY_DB_USER" "$LEDGER_DB_USER" "$PAYMENTS_DB_USER" "$AUDIT_DB_USER"; do
+for role_name in "$IDENTITY_DB_USER" "$LEDGER_DB_USER" "$PAYMENTS_DB_USER" "$AUDIT_DB_USER" "$RESILIENCE_DB_USER"; do
   if [ "$role_name" = "$POSTGRES_USER" ]; then
     printf 'A service role cannot reuse the administrative role name.\n' >&2
     exit 1
@@ -134,5 +134,6 @@ create_service_database "$IDENTITY_DB_NAME" "$IDENTITY_DB_USER" "$IDENTITY_DB_PA
 create_service_database "$LEDGER_DB_NAME" "$LEDGER_DB_USER" "$LEDGER_DB_PASSWORD"
 create_service_database "$PAYMENTS_DB_NAME" "$PAYMENTS_DB_USER" "$PAYMENTS_DB_PASSWORD"
 create_service_database "$AUDIT_DB_NAME" "$AUDIT_DB_USER" "$AUDIT_DB_PASSWORD"
+create_service_database "$RESILIENCE_DB_NAME" "$RESILIENCE_DB_USER" "$RESILIENCE_DB_PASSWORD"
 
 printf 'Prototype service databases and roles initialized successfully.\n'

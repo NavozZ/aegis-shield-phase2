@@ -42,6 +42,10 @@ const REQUIRED_ENVIRONMENT_DECLARATIONS = [
   'AUDIT_DB_USER',
   'AUDIT_DB_PASSWORD',
   'AUDIT_DATABASE_URL',
+  'RESILIENCE_DB_NAME',
+  'RESILIENCE_DB_USER',
+  'RESILIENCE_DB_PASSWORD',
+  'RESILIENCE_DATABASE_URL',
   'REDIS_HOST',
   'REDIS_PORT',
   'REDIS_PASSWORD',
@@ -61,17 +65,19 @@ const POSTGRES_METADATA_COMMAND = `psql --quiet --tuples-only --no-align --field
   --set=identity_db="$IDENTITY_DB_NAME" --set=identity_role="$IDENTITY_DB_USER" \
   --set=ledger_db="$LEDGER_DB_NAME" --set=ledger_role="$LEDGER_DB_USER" \
   --set=payments_db="$PAYMENTS_DB_NAME" --set=payments_role="$PAYMENTS_DB_USER" \
-  --set=audit_db="$AUDIT_DB_NAME" --set=audit_role="$AUDIT_DB_USER" <<'SQL'
+  --set=audit_db="$AUDIT_DB_NAME" --set=audit_role="$AUDIT_DB_USER" \
+  --set=resilience_db="$RESILIENCE_DB_NAME" --set=resilience_role="$RESILIENCE_DB_USER" <<'SQL'
 WITH expected(database_name, role_name) AS (VALUES
     (:'identity_db', :'identity_role'),
     (:'ledger_db', :'ledger_role'),
     (:'payments_db', :'payments_role'),
-    (:'audit_db', :'audit_role')
+    (:'audit_db', :'audit_role'),
+    (:'resilience_db', :'resilience_role')
   )
   SELECT
-    (SELECT count(*) = 4 FROM expected e JOIN pg_database d ON d.datname = e.database_name),
-    (SELECT count(*) = 4 FROM expected e JOIN pg_roles r ON r.rolname = e.role_name),
-    (SELECT count(*) = 4 FROM expected e JOIN pg_database d ON d.datname = e.database_name JOIN pg_roles r ON r.oid = d.datdba AND r.rolname = e.role_name);
+    (SELECT count(*) = 5 FROM expected e JOIN pg_database d ON d.datname = e.database_name),
+    (SELECT count(*) = 5 FROM expected e JOIN pg_roles r ON r.rolname = e.role_name),
+    (SELECT count(*) = 5 FROM expected e JOIN pg_database d ON d.datname = e.database_name JOIN pg_roles r ON r.oid = d.datdba AND r.rolname = e.role_name);
 SQL`;
 
 class InfraError extends Error {

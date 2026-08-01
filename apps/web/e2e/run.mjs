@@ -82,6 +82,11 @@ function redact(text) {
     'RISK_CHANNEL_SOURCE_TOKEN',
     'RISK_OPERATOR_BOOTSTRAP_TOKEN',
     'FIELD_ENCRYPTION_KEY',
+    'RESILIENCE_INTERNAL_TOKEN',
+    'RESILIENCE_GATEWAY_SOURCE_TOKEN',
+    'RESILIENCE_TOOLING_SOURCE_TOKEN',
+    'DR_BACKUP_ENCRYPTION_KEY',
+    'RESILIENCE_DB_PASSWORD',
   ]) {
     const value = environment[name];
     if (value) result = result.replaceAll(value, '[redacted]');
@@ -290,7 +295,7 @@ function captureFailure(error) {
     : error;
 }
 try {
-  for (const port of [3000, 4000, 4101, 4102, 4104, 4105])
+  for (const port of [3000, 4000, 4101, 4102, 4104, 4105, 4106])
     if (await portIsOpen(port))
       throw new Error(`Required test port ${port} is already in use.`);
   process.stderr.write(`[web-e2e] preparing ${mode} stack\n`);
@@ -300,12 +305,14 @@ try {
   await runPnpm(['db:deploy:ledger']);
   await runPnpm(['db:deploy:payments']);
   await runPnpm(['db:deploy:risk']);
+  await runPnpm(['db:deploy:resilience']);
   await cleanTestData();
   await runPnpm(['--filter', '@aegis/contracts', 'build']);
   await runPnpm(['--filter', '@aegis/identity-service', 'build']);
   await runPnpm(['--filter', '@aegis/ledger-service', 'build']);
   await runPnpm(['--filter', '@aegis/payments-service', 'build']);
   await runPnpm(['--filter', '@aegis/risk-service', 'build']);
+  await runPnpm(['--filter', '@aegis/resilience-service', 'build']);
   await runPnpm(['--filter', '@aegis/api-gateway', 'build']);
   await runPnpm(['--filter', '@aegis/web', 'build'], {
     env: { ...environment, NODE_ENV: 'production' },
@@ -334,6 +341,12 @@ try {
     resolve(repositoryRoot, 'services', 'payments'),
   );
   await waitFor('http://127.0.0.1:4104/health', payments, 'Payments');
+  const resilience = start(
+    'Resilience',
+    resolve(repositoryRoot, 'services', 'resilience', 'dist', 'main.js'),
+    resolve(repositoryRoot, 'services', 'resilience'),
+  );
+  await waitFor('http://127.0.0.1:4106/health/live', resilience, 'Resilience');
   const gateway = start(
     'Gateway',
     resolve(repositoryRoot, 'apps', 'api-gateway', 'dist', 'main.js'),
@@ -371,7 +384,7 @@ try {
   await runPnpm(['infra:down']).catch((error) => {
     captureFailure(error);
   });
-  for (const port of [3000, 4000, 4101, 4102, 4104, 4105])
+  for (const port of [3000, 4000, 4101, 4102, 4104, 4105, 4106])
     if (await portIsOpen(port))
       captureFailure(
         new Error(`Port ${port} remained in use after browser cleanup.`),
