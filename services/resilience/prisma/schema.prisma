@@ -1,0 +1,95 @@
+// Operational-resilience metadata.
+//
+// This database holds evidence *about* recovery, never recovered data: no
+// customer records, no balances, no dump contents. Backup files live on disk (or
+// in object storage in a real deployment) and are referenced here only by an
+// opaque identifier and a checksum.
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+// The connection URL lives in prisma.config.ts, as Prisma 7 requires.
+datasource db {
+  provider = "postgresql"
+}
+
+/// One encrypted backup set. Rows are immutable once written.
+model BackupSet {
+  id                  String   @id @default(uuid()) @db.Uuid
+  backupSetId         String   @unique @map("backup_set_id") @db.VarChar(128)
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  /// Logical service names, never database names or paths.
+  services            String[] @map("services")
+  manifestChecksum    String   @map("manifest_checksum") @db.Char(64)
+  encryptionAlgorithm String   @map("encryption_algorithm") @db.VarChar(32)
+  sizeBytes           BigInt   @map("size_bytes")
+  verified            Boolean  @default(false) @map("verified")
+
+  drills RecoveryDrill[]
+
+  @@index([createdAt(sort: Desc)])
+  @@map("backup_sets")
+}
+
+/// A recovery drill and its measured outcome.
+model RecoveryDrill {
+  id          String    @id @default(uuid()) @db.Uuid
+  drillId     String    @unique @map("drill_id") @db.VarChar(128)
+  type        String    @map("type") @db.VarChar(32)
+  state       String    @map("state") @db.VarChar(32)
+  startedAt   DateTime  @default(now()) @map("started_at") @db.Timestamptz(6)
+  completedAt DateTime? @map("completed_at") @db.Timestamptz(6)
+  requestedBy String    @map("requested_by") @db.VarChar(128)
+
+  backupSetId String?    @map("backup_set_id") @db.Uuid
+  backupSet   BackupSet? @relation(fields: [backupSetId], references: [id], onDelete: Restrict)
+
+  /// Prototype measurements. Deliberately not called RPO or RTO in the schema.
+  measuredRecoveryPointAgeSeconds Int? @map("measured_recovery_point_age_seconds")
+  measuredRecoveryDurationMs      Int? @map("measured_recovery_duration_ms")
+
+  failureCode    String?   @map("failure_code") @db.VarChar(64)
+  acknowledgedAt DateTime? @map("acknowledged_at") @db.Timestamptz(6)
+  acknowledgedBy String?   @map("acknowledged_by") @db.VarChar(128)
+  /// Operator-supplied text. Bounded and never rendered as HTML.
+  acknowledgementReason String? @map("acknowledgement_reason") @db.VarChar(500)
+
+  events          DrillEvent[]
+  reconciliations DrillReconciliation[]
+
+  @@index([startedAt(sort: Desc)])
+  @@index([state, startedAt(sort: Desc)])
+  @@map("recovery_drills")
+}
+
+/// Append-only lifecycle history. Enforced by trigger, not only by convention.
+model DrillEvent {
+  id         String   @id @default(uuid()) @db.Uuid
+  eventId    String   @unique @map("event_id") @db.VarChar(128)
+  drillRowId String   @map("drill_row_id") @db.Uuid
+  drill      RecoveryDrill @relation(fields: [drillRowId], references: [id], onDelete: Restrict)
+  state      String   @map("state") @db.VarChar(32)
+  occurredAt DateTime @default(now()) @map("occurred_at") @db.Timestamptz(6)
+  note       String?  @map("note") @db.VarChar(500)
+
+  @@index([drillRowId, occurredAt])
+  @@map("drill_events")
+}
+
+/// Reconciliation outcome recorded during a drill. Append-only.
+model DrillReconciliation {
+  id         String   @id @default(uuid()) @db.Uuid
+  drillRowId String   @map("drill_row_id") @db.Uuid
+  drill      RecoveryDrill @relation(fields: [drillRowId], references: [id], onDelete: Restrict)
+  service    String   @map("service") @db.VarChar(32)
+  status     String   @map("status") @db.VarChar(16)
+  issueCount Int      @map("issue_count")
+  checkedAt  DateTime @default(now()) @map("checked_at") @db.Timestamptz(6)
+
+  @@unique([drillRowId, service])
+  @@index([drillRowId])
+  @@map("drill_reconciliations")
+}

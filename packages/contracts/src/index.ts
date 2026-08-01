@@ -4,3 +4,5 @@ export * from './payments/v1.js';
 export * from './channels/v1.js';
 export * from './sabcl/v1.js';
 export * from './risk/v1.js';
+export * from './resilience/v1.js';
+export * from './resilience/backup-crypto.js';

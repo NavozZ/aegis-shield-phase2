@@ -9,6 +9,7 @@ services/identity/src/generated/
 services/ledger/src/generated/
 services/payments/src/generated/
 services/risk/src/generated/
+services/resilience/src/generated/
 
 # Next.js and NestJS
 .next/
@@ -86,3 +87,11 @@ certs/local/
 *.secret
 *.secrets
 secrets/
+
+# Disaster-recovery working directories.
+# Encrypted backup sets, manifests and any decrypted material produced by the DR
+# tooling stay on the operator machine. A backup set is customer data under a
+# key; committing one would put the whole platform's contents in git history.
+.dr-backups/
+*.dump
+*.dump.enc
