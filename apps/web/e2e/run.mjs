@@ -9,6 +9,7 @@ import { createClient } from 'redis';
 const mode = process.argv[2];
 if (!['functional', 'a11y'].includes(mode))
   throw new Error('Expected functional or a11y mode.');
+const playwrightArguments = process.argv.slice(3);
 const webRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const repositoryRoot = resolve(webRoot, '..', '..');
 const pnpmCli = process.env.npm_execpath;
@@ -20,6 +21,11 @@ const testPhones = [
   '+12025550125',
   '+12025550126',
   '+12025550127',
+  '+12025550128',
+  '+12025550129',
+  '+12025550130',
+  '+12025550131',
+  '+12025550132',
 ];
 const children = [];
 
@@ -324,8 +330,9 @@ try {
     [
       resolve(webRoot, 'node_modules', '@playwright', 'test', 'cli.js'),
       'test',
-      '--grep',
-      mode === 'functional' ? '@functional' : '@a11y',
+      ...(playwrightArguments.length > 0
+        ? playwrightArguments
+        : ['--grep', mode === 'functional' ? '@functional' : '@a11y']),
     ],
     { cwd: webRoot },
   );
