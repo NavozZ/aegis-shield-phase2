@@ -3,18 +3,27 @@ import { formatMoney, type TransferListResponse } from '@aegis/contracts';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { transfersClient } from '@/lib/api/transfers-client';
+import { useLanguage } from '@/lib/i18n/language-provider';
+import { transferCopy } from './transfer-copy';
 export function TransferList() {
+  const { language } = useLanguage();
+  const copy = transferCopy[language];
   const [data, setData] = useState<TransferListResponse>();
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(false);
-  async function load(cursor?: string) {
+  const [direction, setDirection] = useState('');
+  const [status, setStatus] = useState('');
+  const [filters, setFilters] = useState({ direction: '', status: '' });
+  async function load(cursor?: string, replace = false) {
     try {
       setLoading(true);
       const query = new URLSearchParams();
       if (cursor) query.set('cursor', cursor);
+      if (filters.direction) query.set('direction', filters.direction);
+      if (filters.status) query.set('status', filters.status);
       const next = await transfersClient.list(query);
       setData((current) =>
-        current
+        current && !replace
           ? {
               transfers: [
                 ...current.transfers,
@@ -34,10 +43,12 @@ export function TransferList() {
     }
   }
   useEffect(() => {
-    void Promise.resolve().then(() => load());
-  }, []);
-  if (error && !data)
-    return <p role="alert">Transfer history is temporarily unavailable.</p>;
+    void Promise.resolve().then(() => load(undefined, true));
+    // `filters` is the submitted immutable snapshot; draft select changes do
+    // not issue requests until the customer applies them.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters]);
+  if (error && !data) return <p role="alert">{copy.unavailable}</p>;
   return (
     <section
       className="transfer-list"
@@ -45,15 +56,52 @@ export function TransferList() {
     >
       <div className="workspace-title">
         <div>
-          <p className="eyebrow">Transfers</p>
-          <h1 id="transfer-history-heading">Transfer history</h1>
+          <p className="eyebrow">{copy.transfers}</p>
+          <h1 id="transfer-history-heading">{copy.history}</h1>
         </div>
         <Link href="/app/transfers/new" className="button button-primary">
-          Send money
+          {copy.sendMoney}
         </Link>
       </div>
+      <div className="transaction-filters">
+        <label>
+          <span>{copy.direction}</span>
+          <select
+            value={direction}
+            onChange={(event) => setDirection(event.target.value)}
+          >
+            <option value="">{copy.allDirections}</option>
+            <option value="SENT">{copy.sent}</option>
+            <option value="RECEIVED">{copy.received}</option>
+          </select>
+        </label>
+        <label>
+          <span>{copy.status}</span>
+          <select
+            value={status}
+            onChange={(event) => setStatus(event.target.value)}
+          >
+            <option value="">{copy.allStatuses}</option>
+            <option value="PROCESSING">PROCESSING</option>
+            <option value="COMPLETED">COMPLETED</option>
+            <option value="FAILED">FAILED</option>
+            <option value="REQUIRES_REVIEW">REQUIRES_REVIEW</option>
+          </select>
+        </label>
+        <button
+          type="button"
+          className="button button-secondary"
+          disabled={loading}
+          onClick={() => {
+            setError(false);
+            setFilters({ direction, status });
+          }}
+        >
+          {copy.applyFilters}
+        </button>
+      </div>
       {!data?.transfers.length ? (
-        <p role="status">No transfers yet.</p>
+        <p role="status">{copy.none}</p>
       ) : (
         <ol>
           {data.transfers.map((transfer) => (
@@ -61,8 +109,8 @@ export function TransferList() {
               <Link href={`/app/transfers/${transfer.id}`}>
                 <span>
                   <strong>
-                    {transfer.direction === 'SENT' ? 'Sent' : 'Received'} ·{' '}
-                    {transfer.status}
+                    {transfer.direction === 'SENT' ? copy.sent : copy.received}{' '}
+                    · {transfer.status}
                   </strong>
                   <small>{transfer.counterpartyMaskedReference}</small>
                   <time dateTime={transfer.createdAt}>
@@ -84,11 +132,7 @@ export function TransferList() {
           ))}
         </ol>
       )}
-      {error ? (
-        <p role="alert">
-          Previously loaded transfers remain available. Try again later.
-        </p>
-      ) : null}
+      {error ? <p role="alert">{copy.retained}</p> : null}
       {data?.nextCursor ? (
         <button
           type="button"
@@ -96,7 +140,7 @@ export function TransferList() {
           disabled={loading}
           onClick={() => void load(data.nextCursor!)}
         >
-          Load more
+          {copy.loadMore}
         </button>
       ) : null}
     </section>

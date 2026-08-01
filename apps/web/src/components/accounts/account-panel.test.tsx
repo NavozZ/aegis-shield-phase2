@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderWithLanguage } from '@/test/render';
 import { dictionaries } from '@/lib/i18n/dictionaries';
+import { transferCopy } from '@/components/transfers/transfer-copy';
 import { AccountPanel } from './account-panel';
 
 const refresh = vi.fn();
@@ -271,7 +272,9 @@ describe('account panel translations', () => {
       expect(
         screen.getByText(dictionaries[language].accountBalance),
       ).toBeInTheDocument();
-      expect(screen.getByText('Receive money')).toBeInTheDocument();
+      expect(
+        screen.getByText(transferCopy[language].receiveMoney),
+      ).toBeInTheDocument();
       // The formatted amount is locale-independent in this prototype.
       expect(screen.getByText('LKR 0.00')).toBeInTheDocument();
     },

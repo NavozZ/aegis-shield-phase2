@@ -17,6 +17,7 @@ export class AuthClientError extends Error {
   constructor(
     readonly kind: AuthErrorKind,
     readonly status?: number,
+    readonly code?: string,
   ) {
     super(kind);
     this.name = 'AuthClientError';
@@ -38,24 +39,27 @@ export function mapHttpError(
 ): AuthClientError {
   const parsed = standardErrorResponseSchema.safeParse(body);
   const code = parsed.success ? parsed.data.error.code : '';
-  if (status === 400) return new AuthClientError('invalid_input', status);
+  if (status === 400) return new AuthClientError('invalid_input', status, code);
   if (status === 403)
     return new AuthClientError(
       code === 'INVALID_CSRF' ? 'session_expired' : 'authentication_failed',
       status,
+      code,
     );
-  if (status === 404) return new AuthClientError('unexpected', status);
-  if (status === 409) return new AuthClientError('request_conflict', status);
-  if (status === 429) return new AuthClientError('rate_limited', status);
-  if (status === 503) return new AuthClientError('service_unavailable', status);
+  if (status === 404) return new AuthClientError('unexpected', status, code);
+  if (status === 409)
+    return new AuthClientError('request_conflict', status, code);
+  if (status === 429) return new AuthClientError('rate_limited', status, code);
+  if (status === 503)
+    return new AuthClientError('service_unavailable', status, code);
   if (status === 401) {
     if (/OTP|CHALLENGE|ENROLLMENT/u.test(code))
-      return new AuthClientError('invalid_otp', status);
+      return new AuthClientError('invalid_otp', status, code);
     if (code === 'UNAUTHENTICATED')
-      return new AuthClientError('session_expired', status);
-    return new AuthClientError(unauthenticatedKind, status);
+      return new AuthClientError('session_expired', status, code);
+    return new AuthClientError(unauthenticatedKind, status, code);
   }
-  return new AuthClientError('unexpected', status);
+  return new AuthClientError('unexpected', status, code);
 }
 
 export async function request<T>(

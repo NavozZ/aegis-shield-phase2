@@ -7,16 +7,21 @@ import {
 } from '@aegis/contracts';
 import { useRouter } from 'next/navigation';
 import { useRef, useState } from 'react';
+import { AuthClientError } from '@/lib/api/auth-client';
+import { useLanguage } from '@/lib/i18n/language-provider';
 import {
   createTransferIdempotencyKey,
   transfersClient,
 } from '@/lib/api/transfers-client';
+import { transferCopy } from './transfer-copy';
 export function TransferForm({
   accounts,
 }: {
   accounts: CustomerAccountSummary[];
 }) {
   const router = useRouter();
+  const { language } = useLanguage();
+  const copy = transferCopy[language];
   const [sourceAccountId, setSourceAccountId] = useState(accounts[0]?.id ?? '');
   const [recipientReference, setRecipientReference] = useState('');
   const [amount, setAmount] = useState('');
@@ -40,7 +45,7 @@ export function TransferForm({
         }),
       );
     } catch {
-      setError('Check the recipient reference and amount, then try again.');
+      setError(copy.invalid);
     } finally {
       setBusy(false);
     }
@@ -59,15 +64,26 @@ export function TransferForm({
       if (result.status === 'COMPLETED' || result.status === 'PROCESSING')
         router.push(`/app/transfers/${result.id}`);
       else setError('The transfer could not be completed.');
-    } catch {
-      setError('Authorization failed or the transfer could not be completed.');
+    } catch (caught) {
+      const code = caught instanceof AuthClientError ? caught.code : undefined;
+      setError(
+        code === 'TRANSFER_STEP_UP_FAILED'
+          ? copy.wrongPin
+          : code === 'INTENT_EXPIRED'
+            ? copy.expired
+            : code === 'INSUFFICIENT_FUNDS'
+              ? copy.insufficient
+              : code === 'LIMIT_EXCEEDED'
+                ? copy.dailyLimit
+                : copy.authorizationFailed,
+      );
     } finally {
       setBusy(false);
     }
   }
   return (
     <section className="transfer-form" aria-labelledby="send-heading">
-      <h1 id="send-heading">Send money</h1>
+      <h1 id="send-heading">{copy.sendMoney}</h1>
       {error ? (
         <p role="alert" tabIndex={-1}>
           {error}
@@ -76,7 +92,7 @@ export function TransferForm({
       {!preview ? (
         <>
           <label className="field">
-            <span>Source account</span>
+            <span>{copy.sourceAccount}</span>
             <select
               value={sourceAccountId}
               onChange={(e) => setSourceAccountId(e.target.value)}
@@ -89,7 +105,7 @@ export function TransferForm({
             </select>
           </label>
           <label className="field">
-            <span>Recipient AEGIS reference</span>
+            <span>{copy.recipient}</span>
             <input
               value={recipientReference}
               onChange={(e) =>
@@ -100,7 +116,7 @@ export function TransferForm({
             />
           </label>
           <label className="field">
-            <span>Amount (LKR)</span>
+            <span>{copy.amount}</span>
             <input
               inputMode="decimal"
               value={amount}
@@ -114,33 +130,33 @@ export function TransferForm({
             disabled={busy || !sourceAccountId}
             onClick={() => void review()}
           >
-            Preview transfer
+            {copy.preview}
           </button>
         </>
       ) : (
         <>
-          <h2>Review transfer</h2>
+          <h2>{copy.review}</h2>
           <dl>
             <div>
-              <dt>From</dt>
+              <dt>{copy.from}</dt>
               <dd>{preview.sourceMaskedReference}</dd>
             </div>
             <div>
-              <dt>To</dt>
+              <dt>{copy.to}</dt>
               <dd>{preview.recipientMaskedReference}</dd>
             </div>
             <div>
-              <dt>Amount</dt>
+              <dt>{copy.amount}</dt>
               <dd>{formatMoney(preview.amount)}</dd>
             </div>
             <div>
-              <dt>Available balance</dt>
+              <dt>{copy.available}</dt>
               <dd>{formatMoney(preview.sourceBalance)}</dd>
             </div>
           </dl>
-          <p>Verify the masked recipient and amount before authorizing.</p>
+          <p>{copy.verify}</p>
           <label className="field">
-            <span>Enter your PIN</span>
+            <span>{copy.enterPin}</span>
             <input
               type="password"
               inputMode="numeric"
@@ -156,7 +172,7 @@ export function TransferForm({
             disabled={busy || !/^[0-9]{6}$/u.test(pin)}
             onClick={() => void confirm()}
           >
-            Confirm transfer
+            {copy.confirm}
           </button>
           <button
             type="button"
@@ -164,7 +180,7 @@ export function TransferForm({
             disabled={busy}
             onClick={() => setPreview(undefined)}
           >
-            Edit details
+            {copy.edit}
           </button>
         </>
       )}

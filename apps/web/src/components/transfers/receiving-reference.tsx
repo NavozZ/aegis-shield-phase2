@@ -1,6 +1,10 @@
 'use client';
 import { useState } from 'react';
+import { useLanguage } from '@/lib/i18n/language-provider';
+import { transferCopy } from './transfer-copy';
 export function ReceivingReference({ reference }: { reference: string }) {
+  const { language } = useLanguage();
+  const copyText = transferCopy[language];
   const [copied, setCopied] = useState(false);
   async function copy() {
     await navigator.clipboard?.writeText(reference);
@@ -8,21 +12,18 @@ export function ReceivingReference({ reference }: { reference: string }) {
   }
   return (
     <section className="receive-panel" aria-labelledby="receive-heading">
-      <h3 id="receive-heading">Receive money</h3>
-      <p>
-        Share this receiving reference only with someone who is sending you
-        money.
-      </p>
+      <h3 id="receive-heading">{copyText.receiveMoney}</h3>
+      <p>{copyText.receiveHelp}</p>
       <code>{reference}</code>
       <button
         type="button"
         className="button button-secondary"
         onClick={() => void copy()}
       >
-        {copied ? 'Copied' : 'Copy reference'}
+        {copied ? copyText.copied : copyText.copyReference}
       </button>
       <p className="sr-only" aria-live="polite">
-        {copied ? 'Reference copied.' : ''}
+        {copied ? copyText.referenceCopied : ''}
       </p>
     </section>
   );
