@@ -8,6 +8,7 @@ import { DatabaseModule } from './database/database.module';
 import { HealthModule } from './health/health.module';
 import { JournalModule } from './ledger/journal.module';
 import { ReconciliationModule } from './reconciliation/reconciliation.module';
+import { LedgerSabclModule } from './sabcl/sabcl.module';
 import { TransactionModule } from './transactions/transaction.module';
 import { CustomerTransferModule } from './transfers/customer-transfer.module';
 
@@ -21,6 +22,7 @@ import { CustomerTransferModule } from './transfers/customer-transfer.module';
     ReconciliationModule,
     TransactionModule,
     CustomerTransferModule,
+    LedgerSabclModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: InternalTokenGuard }],
 })

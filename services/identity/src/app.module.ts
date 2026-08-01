@@ -7,6 +7,7 @@ import { InternalTokenGuard } from './common/security/internal-token.guard';
 import { DatabaseModule } from './database/database.module';
 import { HealthModule } from './health/health.module';
 import { RedisModule } from './redis/redis.module';
+import { IdentitySabclModule } from './sabcl/sabcl.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { RedisModule } from './redis/redis.module';
     RedisModule,
     HealthModule,
     AuthModule,
+    IdentitySabclModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: InternalTokenGuard }],
 })

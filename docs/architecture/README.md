@@ -38,11 +38,26 @@ The Gateway does not own credentials, user records, sessions, or banking state a
 
 The Ledger performs no authentication and duplicates no Identity logic. Money is stored as integer minor units and crosses every boundary as a decimal string. Customer wallets are liabilities of the platform. Integrity is enforced by database constraints and triggers, not only by application code — see [ledger-integrity-model.md](../security/ledger-integrity-model.md).
 
+## SABCL blind router responsibility
+
+`services/sabcl-router` is loopback-bound on port 4103 with no browser CORS and
+no internal-token guard. It owns exactly one decision: which allowlisted
+destination an opaque route token resolves to.
+
+It holds no recipient decryption key, so the payloads it forwards are opaque
+bytes to that process by construction rather than by policy. It verifies
+structure — version, freshness, sender-key allowlist, hop budget, rate limit,
+route resolution and replay — and forwards the envelope unchanged. It does not
+verify signatures; the recipient does, so a compromised router that lied about
+authenticity would be caught at the far end.
+
+It is the least-trusted server-side element in the system, which is the point:
+it must be able to route and must not be able to read. See
+[ADR 0009](../decisions/0009-sabcl-privacy-and-secure-routing.md).
+
 ## Future independent service boundaries
 
-- payments
 - threat-detection
-- sabcl-proxy
 - notifications
 - recovery
 
@@ -54,12 +69,19 @@ Each stateful service will own its data store and publish explicit contracts. Sh
 Browser → Next.js UI assets and protected server rendering
 Browser → NestJS API Gateway authentication and account routes (credentialed CORS)
 Next.js server → NestJS API Gateway session and account routes (session cookie only)
-NestJS API Gateway → allowlisted Identity API (internal token)
-NestJS API Gateway → allowlisted Ledger API (internal token, session-derived customer)
+NestJS API Gateway → SABCL blind router → allowlisted Identity API   (encrypted envelope)
+NestJS API Gateway → SABCL blind router → allowlisted Ledger API     (encrypted envelope)
+NestJS API Gateway → SABCL blind router → allowlisted Payments API   (encrypted envelope)
 Identity → Identity-owned PostgreSQL app schema
 Identity → Identity Redis namespace
 Ledger  → Ledger-owned PostgreSQL app schema
+SABCL router → Redis replay namespace (aegis:sabcl:)
 ```
+
+When `SABCL_MODE=off` the Gateway calls each service directly with an internal
+token, as it did before Prompt 09. When SABCL is configured, those calls are
+encrypted before the router sees them, and in `strict` mode there is no other
+path — a router outage is an outage, never a plaintext retry.
 
 The browser never calls Identity or the Ledger directly. The Gateway sets the HttpOnly session and readable double-submit CSRF cookies, validates the exact configured web origin, and normalizes public errors. Next.js receives only safe session and account fields when rendering protected pages. Transfers, payments and all other service connections remain deferred.
 
@@ -79,6 +101,46 @@ Ledger idempotency is stored in PostgreSQL rather than Redis, because an idempot
 
 Queues, production service messaging, deployment manifests, workload identity, and observability backends remain deferred.
 
+## SABCL-protected communication flow
+
+```text
+Browser
+   │  authenticated request, session cookie + CSRF
+   ▼
+API Gateway ─────────────────────────────────────────────── trusted, holds keys
+   │  1. authenticate, validate, derive the customer from the session
+   │  2. choose a capability  (ledger.accounts)
+   │  3. SEAL: X25519 → HKDF-SHA-256 → AES-256-GCM, then Ed25519 sign
+   │
+   │  sealed envelope: version, random id, opaque route token, key ids,
+   │  ephemeral public key, times, nonce, hop limit, padding bucket,
+   │  ciphertext, tag, signature
+   ▼
+SABCL blind router :4103 ──────────────────────── SEMI-TRUSTED: routes, cannot read
+   │  size → schema → expiry → sender allowlist → hop budget → rate limit
+   │  → route token resolves to an allowlisted destination
+   │  → replay claim in Redis (SET NX EX, atomic across instances)
+   │  forwards the same bytes; holds no key that opens them
+   ▼
+Recipient service ────────────────────────────────────────── trusted, holds keys
+   │  verify Ed25519 signature → derive key → AES-GCM open → own replay claim
+   │  → check the path against the capability allowlist
+   │  → dispatch on loopback with the internal token, so every existing
+   │    guard, pipe, filter and contract check runs unchanged
+   ▼
+Identity / Ledger / Payments internal routes → PostgreSQL
+```
+
+The response returns sealed on the same path, correlated by the request's opaque
+message identifier.
+
+Capabilities: `identity.step-up`, `ledger.accounts`, `ledger.postings`,
+`payments.transfer`. Reads and postings are separate so one token cannot both
+list accounts and move money. Reconciliation, recovery, journal entries and every
+browser-driven authentication flow have no SABCL route at all.
+
+Full specification: [sabcl-protocol.md](../security/sabcl-protocol.md).
+
 ## Future diagrams and flows
 
 The following remain to be completed as their implementations are introduced:
@@ -87,7 +149,6 @@ The following remain to be completed as their implementations are introduced:
 - production workload-authentication flow
 - external/QR payment flows
 - transaction history and statement flow
-- SABCL-protected communication flow
 - failure isolation and recovery flow
 
 ## Prompt 07 transfer flow

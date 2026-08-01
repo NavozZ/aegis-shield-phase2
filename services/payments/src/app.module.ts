@@ -4,6 +4,7 @@ import { PaymentsConfigModule } from './common/config/config.module';
 import { InternalTokenGuard } from './common/security/internal-token.guard';
 import { DatabaseModule } from './database/database.module';
 import { HealthModule } from './health/health.module';
+import { PaymentsSabclModule } from './sabcl/sabcl.module';
 import { TransfersModule } from './transfers/transfers.module';
 @Module({
   imports: [
@@ -11,6 +12,7 @@ import { TransfersModule } from './transfers/transfers.module';
     DatabaseModule,
     HealthModule,
     TransfersModule,
+    PaymentsSabclModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: InternalTokenGuard }],
 })

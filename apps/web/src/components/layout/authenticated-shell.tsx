@@ -62,6 +62,7 @@ export function AuthenticatedShell({
           <Link href="/app">{dictionary.workspace}</Link>
           <Link href="/app/transfers">Transfers</Link>
           <Link href="/app/security">{dictionary.securitySettings}</Link>
+          <Link href="/app/sabcl">SABCL</Link>
         </nav>
         <div className="header-actions">
           <LanguageSelector />

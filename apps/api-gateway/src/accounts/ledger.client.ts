@@ -1,7 +1,9 @@
+import { SabclError, type SabclCapabilityId } from '@aegis/sabcl';
 import { HttpException, HttpStatus, Inject, Injectable } from '@nestjs/common';
 import type { z } from 'zod';
 import { GATEWAY_CONFIG, type GatewayConfig } from '../config/gateway.config';
 import type { RequestContext } from '../common/http/request-context';
+import { SabclTransportService } from '../sabcl/sabcl-transport.service';
 
 export const LEDGER_ENDPOINTS = {
   provisionDefaultAccount: '/internal/customer-accounts/default',
@@ -37,9 +39,88 @@ export class LedgerHttpError extends Error {
  */
 @Injectable()
 export class LedgerClient {
-  constructor(@Inject(GATEWAY_CONFIG) private readonly config: GatewayConfig) {}
+  constructor(
+    @Inject(GATEWAY_CONFIG) private readonly config: GatewayConfig,
+    private readonly sabcl: SabclTransportService,
+  ) {}
 
   async request<T extends z.ZodType>(
+    endpoint: string,
+    method: 'GET' | 'POST',
+    schema: T,
+    request: RequestContext,
+    options: { body?: unknown; customerId?: string } = {},
+  ): Promise<z.output<T>> {
+    // When SABCL is configured, every Gateway-to-Ledger call goes through the
+    // blind router. In strict mode there is no other path: a router outage
+    // surfaces as an outage, never as a plaintext retry.
+    if (this.sabcl.enabled) {
+      return this.requestThroughSabcl(
+        endpoint,
+        method,
+        schema,
+        request,
+        options,
+      );
+    }
+    return this.requestDirect(endpoint, method, schema, request, options);
+  }
+
+  /**
+   * Encrypted path.
+   *
+   * The endpoint is chosen here, in the gateway, from a fixed set in
+   * LEDGER_ENDPOINTS — never from anything a browser supplied — and then
+   * encrypted before the router sees it.
+   */
+  private async requestThroughSabcl<T extends z.ZodType>(
+    endpoint: string,
+    method: 'GET' | 'POST',
+    schema: T,
+    request: RequestContext,
+    options: { body?: unknown; customerId?: string },
+  ): Promise<z.output<T>> {
+    try {
+      const capability = capabilityForEndpoint(endpoint);
+      const response = await this.sabcl.call({
+        capability,
+        operation: `${capability}.${method.toLowerCase()}`,
+        method,
+        path: endpoint,
+        body: options.body,
+        customerId: options.customerId,
+        correlationId: request.correlationId,
+      });
+      if (response.status >= 400) {
+        throw new LedgerHttpError(response.status, response.body);
+      }
+      const parsed = schema.safeParse(response.body);
+      if (!parsed.success) {
+        throw new HttpException(
+          { error: { code: 'LEDGER_UNAVAILABLE' } },
+          HttpStatus.SERVICE_UNAVAILABLE,
+        );
+      }
+      return parsed.data;
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      if (error instanceof LedgerHttpError) {
+        throw new HttpException(error.responseBody ?? {}, error.status);
+      }
+      if (error instanceof SabclError && !this.sabcl.strict) {
+        // Compatible mode only: a documented, deliberately configured local
+        // fallback. Strict mode never reaches this branch.
+        return this.requestDirect(endpoint, method, schema, request, options);
+      }
+      throw new HttpException(
+        { error: { code: 'LEDGER_UNAVAILABLE' } },
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
+  }
+
+  /** The pre-SABCL direct internal call. Unchanged. */
+  private async requestDirect<T extends z.ZodType>(
     endpoint: string,
     method: 'GET' | 'POST',
     schema: T,
@@ -128,4 +209,18 @@ export class LedgerClient {
       clearTimeout(timeout);
     }
   }
+}
+
+/**
+ * Selects the SABCL capability for a Ledger endpoint.
+ *
+ * Reads and postings are separate capabilities, so a route token that permits
+ * listing accounts does not also permit moving money. The distinction is
+ * enforced at the recipient by the path allowlist; this function is the sender
+ * side of the same split.
+ */
+function capabilityForEndpoint(endpoint: string): SabclCapabilityId {
+  return endpoint.startsWith('/internal/customer-transfers')
+    ? 'ledger.postings'
+    : 'ledger.accounts';
 }

@@ -2,6 +2,7 @@ import { transferListResponseSchema } from '@aegis/contracts';
 import type { GatewayConfig } from '../config/gateway.config';
 import type { RequestContext } from '../common/http/request-context';
 import { PaymentsClient } from './payments.client';
+import type { SabclTransportService } from '../sabcl/sabcl-transport.service';
 
 const correlationId = '33333333-3333-4333-8333-333333333333';
 const customerId = '11111111-1111-4111-8111-111111111111';
@@ -30,9 +31,16 @@ function mockFetch(response: { ok: boolean; status: number; body: unknown }) {
   };
 }
 
+/** SABCL disabled: these cases pin the direct internal path's behaviour. */
+const sabclDisabled = {
+  enabled: false,
+  strict: false,
+  mode: 'off',
+} as unknown as SabclTransportService;
+
 describe('PaymentsClient', () => {
   const originalFetch = globalThis.fetch;
-  const client = new PaymentsClient(config);
+  const client = new PaymentsClient(config, sabclDisabled);
 
   afterEach(() => {
     globalThis.fetch = originalFetch;

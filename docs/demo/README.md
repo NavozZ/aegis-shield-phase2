@@ -40,4 +40,15 @@ To be completed during implementation. Demonstrate controlled failure, restore, 
 
 ## SABCL traffic comparison
 
-To be completed during implementation. Compare ordinary and SABCL-protected service traffic using a controlled scenario and document the observable metadata difference.
+Implemented in Prompt 09. See [sabcl-routing-demo.md](sabcl-routing-demo.md).
+Demonstrates strict-mode startup validation, the operator status page, a real
+encrypted account read through the blind router, the privacy-safe audit trail,
+the metadata leakage scan against seeded sensitive values, tampering and replay
+rejection, the confused-deputy defence, and safe failure with no plaintext
+fallback when the router is down.
+
+The observable difference: before, `GET /internal/customers/{customerId}/accounts`
+carried a customer identifier in a URL on the internal network. After, the router
+sees a version, a random message identifier, an opaque route token, two key
+identifiers, an ephemeral public key, timestamps, a nonce, a hop limit, a padding
+bucket and ciphertext — and records only salted digests of the first two.

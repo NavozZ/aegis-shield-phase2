@@ -83,6 +83,20 @@ jobs:
       IDENTITY_REDIS_PREFIX: 'aegis:identity:test:ci:'
       DEMO_AUTH_ENABLED: true
       FIELD_ENCRYPTION_KEY: CI_ONLY_NOT_PRODUCTION_KEY
+      # SABCL. SABCL_MODE is deliberately NOT set here. Setting it job-wide
+      # would make every service load a SABCL environment, and with no key
+      # material configured a strict load fails at startup — which would break
+      # the existing Identity, Ledger, Payments, Gateway and Playwright suites
+      # that need those services running on their direct paths.
+      #
+      # Strict mode is exercised instead by suites that build their own keyring
+      # from deterministic fixtures: `sabcl:test:e2e` runs a full encrypted
+      # journey over real sockets with mode 'strict', and the SABCL package
+      # suite covers strict startup validation, placeholder refusal and fixture
+      # refusal.
+      SABCL_ROUTER_PORT: 4103
+      SABCL_ROUTER_URL: http://127.0.0.1:4103
+      SABCL_REDIS_PREFIX: 'aegis:sabcl:test:ci:'
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -113,6 +127,14 @@ jobs:
         run: node --test infra/scripts/infra.test.mjs
       - name: Test shared contracts
         run: pnpm --filter @aegis/contracts test
+      # The SABCL package is built by its own test script, and the gateway and
+      # router suites import its dist output, so it runs before them.
+      - name: Test SABCL protocol, crypto, padding, rotation and route tokens
+        run: pnpm sabcl:test
+      - name: Test SABCL metadata leakage against seeded sensitive values
+        run: pnpm sabcl:test:leakage
+      - name: Test SABCL blind router routing, replay and rate limits
+        run: pnpm --filter @aegis/sabcl-router test
       - name: Test Identity service
         run: pnpm --filter @aegis/identity-service test
       - name: Test Identity transfer step-up
@@ -125,6 +147,10 @@ jobs:
         run: pnpm ledger:test:integration
       - name: Test Payments PostgreSQL transfer processing
         run: pnpm payments:test:integration
+      - name: Test SABCL router with real Redis replay state
+        run: pnpm sabcl:test:integration
+      - name: Test strict-mode encrypted end-to-end journey through the router
+        run: pnpm sabcl:test:e2e
       - name: Test API Gateway
         run: pnpm --filter @aegis/api-gateway test
       - name: Test authentication end to end
