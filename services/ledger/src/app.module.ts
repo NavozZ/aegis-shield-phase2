@@ -8,6 +8,7 @@ import { DatabaseModule } from './database/database.module';
 import { HealthModule } from './health/health.module';
 import { JournalModule } from './ledger/journal.module';
 import { ReconciliationModule } from './reconciliation/reconciliation.module';
+import { TransactionModule } from './transactions/transaction.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { ReconciliationModule } from './reconciliation/reconciliation.module';
     AccountModule,
     JournalModule,
     ReconciliationModule,
+    TransactionModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: InternalTokenGuard }],
 })

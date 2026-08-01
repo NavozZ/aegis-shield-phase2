@@ -35,6 +35,14 @@ export default async function WorkspacePage() {
         }
         unavailable={accountState.status === 'unavailable'}
       />
+      {accountState.status === 'ready' && accountState.account ? (
+        <Link
+          className="button button-primary"
+          href={`/app/accounts/${accountState.account.id}`}
+        >
+          View transaction history
+        </Link>
+      ) : null}
       <section aria-labelledby="session-heading">
         <h2 id="session-heading">{dictionary.sessionStatus}</h2>
         <SessionCard session={state.session} dictionary={dictionary} />

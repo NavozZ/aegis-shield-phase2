@@ -733,6 +733,96 @@ h3 {
   font-variant-numeric: tabular-nums;
   font-size: 1.15rem;
 }
+.transaction-history,
+.receipt {
+  display: grid;
+  gap: 1rem;
+  padding: 1.5rem;
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  background: #fff;
+}
+.history-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+.history-filters label {
+  display: grid;
+  gap: 0.35rem;
+  font-weight: 700;
+}
+.transaction-list {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+.transaction-list a {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.5rem;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.6rem;
+  text-decoration: none;
+}
+.transaction-list small,
+.transaction-list time {
+  display: block;
+  color: var(--muted);
+}
+.amount-positive {
+  color: var(--success);
+  font-weight: 800;
+}
+.amount-negative {
+  color: var(--danger);
+  font-weight: 800;
+}
+.receipt dl {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+}
+.receipt dt {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.receipt dd {
+  margin: 0.25rem 0 0;
+  font-weight: 800;
+}
+@media print {
+  body {
+    background: #fff;
+    color: #000;
+  }
+  .workspace-header,
+  .workspace-warning,
+  .no-print {
+    display: none !important;
+  }
+  .workspace-main {
+    width: 100%;
+    padding: 0;
+  }
+  .receipt {
+    border: 0;
+    box-shadow: none;
+  }
+  @page {
+    size: auto;
+    margin: 16mm;
+  }
+}
+@media (max-width: 560px) {
+  .transaction-list a,
+  .receipt dl {
+    grid-template-columns: 1fr;
+  }
+}
 
 @media (max-width: 900px) {
   .hero {
