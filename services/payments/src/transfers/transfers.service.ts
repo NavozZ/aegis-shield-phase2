@@ -39,6 +39,7 @@ type TransferRow = {
   recipientAccountId: string;
   senderMaskedReference: string;
   recipientMaskedReference: string;
+  recipientPublicReference: string;
   currency: string;
   amountMinor: bigint;
   status: 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'REQUIRES_REVIEW';
@@ -49,6 +50,8 @@ type TransferRow = {
   recipientBalanceAfterMinor: bigint | null;
   createdAt: Date;
   completedAt: Date | null;
+  correlationId: string;
+  attemptCount: number;
 };
 
 function safeFailure(
@@ -232,6 +235,80 @@ export class TransfersService {
     });
   }
 
+  private async settle(
+    row: TransferRow,
+    correlationId: string,
+  ): Promise<TransferRow> {
+    try {
+      const result = await this.ledger.transfer(
+        {
+          transferId: row.id,
+          transferReference: row.displayReference,
+          senderCustomerId: row.senderCustomerId,
+          sourceAccountId: row.senderAccountId,
+          recipientReference: row.recipientPublicReference,
+          amountMinor: row.amountMinor.toString(),
+          currency: row.currency,
+          idempotencyKey: `transfer:${row.id}`,
+        },
+        correlationId,
+      );
+      return (await this.prisma.client.transfer.update({
+        where: { id: row.id },
+        data: {
+          status: 'COMPLETED',
+          ledgerJournalId: result.journalId,
+          senderPostingId: result.senderPostingId,
+          recipientPostingId: result.recipientPostingId,
+          senderBalanceAfterMinor: BigInt(result.senderBalanceAfter.minorUnits),
+          recipientBalanceAfterMinor: BigInt(
+            result.recipientBalanceAfter.minorUnits,
+          ),
+          completedAt: new Date(),
+          nextAttemptAt: null,
+          events: {
+            create: [
+              {
+                eventType: 'LEDGER_POSTED',
+                previousStatus: 'PROCESSING',
+                nextStatus: 'COMPLETED',
+                occurredAt: new Date(),
+              },
+              {
+                eventType: 'COMPLETED',
+                previousStatus: 'PROCESSING',
+                nextStatus: 'COMPLETED',
+                occurredAt: new Date(),
+              },
+            ],
+          },
+        },
+      })) as TransferRow;
+    } catch (error) {
+      if (error instanceof LedgerCallError && error.status < 500) {
+        return (await this.prisma.client.transfer.update({
+          where: { id: row.id },
+          data: {
+            status: 'FAILED',
+            failureCode: safeFailure(error.code),
+            failedAt: new Date(),
+            nextAttemptAt: null,
+            events: {
+              create: {
+                eventType: 'FAILED',
+                previousStatus: 'PROCESSING',
+                nextStatus: 'FAILED',
+                safeCode: safeFailure(error.code),
+                occurredAt: new Date(),
+              },
+            },
+          },
+        })) as TransferRow;
+      }
+      return row;
+    }
+  }
+
   async confirm(
     input: InternalTransferConfirmation,
     correlationId: string,
@@ -242,13 +319,7 @@ export class TransfersService {
       const intent = await tx.transferIntent.findFirst({
         where: { tokenHash, senderCustomerId: input.senderCustomerId },
       });
-      if (
-        !intent ||
-        intent.expiresAt <= new Date() ||
-        intent.consumedAt ||
-        !intent.authorizedAt
-      )
-        throw new PaymentsError('INTENT_EXPIRED');
+      if (!intent) throw new PaymentsError('INTENT_EXPIRED');
       const requestHash = canonicalHash({
         senderCustomerId: input.senderCustomerId,
         intentId: intent.id,
@@ -271,6 +342,12 @@ export class TransfersService {
           throw new PaymentsError('IDEMPOTENCY_CONFLICT');
         return { row: existing as TransferRow, replayed: true };
       }
+      if (
+        intent.expiresAt <= new Date() ||
+        intent.consumedAt ||
+        !intent.authorizedAt
+      )
+        throw new PaymentsError('INTENT_EXPIRED');
       const reserved = await tx.transfer.aggregate({
         where: {
           senderCustomerId: input.senderCustomerId,
@@ -325,79 +402,10 @@ export class TransfersService {
     });
     if (prepared.replayed || prepared.row.status !== 'PROCESSING')
       return this.asDetail(prepared.row, input.senderCustomerId);
-    try {
-      const result = await this.ledger.transfer(
-        {
-          transferId: prepared.row.id,
-          transferReference: prepared.row.displayReference,
-          senderCustomerId: input.senderCustomerId,
-          sourceAccountId: prepared.row.senderAccountId,
-          recipientReference: (
-            await this.prisma.client.transferIntent.findUniqueOrThrow({
-              where: { id: prepared.row.intentId },
-              select: { recipientPublicReference: true },
-            })
-          ).recipientPublicReference,
-          amountMinor: prepared.row.amountMinor.toString(),
-          currency: prepared.row.currency,
-          idempotencyKey: `transfer:${prepared.row.id}`,
-        },
-        correlationId,
-      );
-      const completed = await this.prisma.client.transfer.update({
-        where: { id: prepared.row.id },
-        data: {
-          status: 'COMPLETED',
-          ledgerJournalId: result.journalId,
-          senderPostingId: result.senderPostingId,
-          recipientPostingId: result.recipientPostingId,
-          senderBalanceAfterMinor: BigInt(result.senderBalanceAfter.minorUnits),
-          recipientBalanceAfterMinor: BigInt(
-            result.recipientBalanceAfter.minorUnits,
-          ),
-          completedAt: new Date(),
-          events: {
-            create: [
-              {
-                eventType: 'LEDGER_POSTED',
-                previousStatus: 'PROCESSING',
-                nextStatus: 'COMPLETED',
-                occurredAt: new Date(),
-              },
-              {
-                eventType: 'COMPLETED',
-                previousStatus: 'PROCESSING',
-                nextStatus: 'COMPLETED',
-                occurredAt: new Date(),
-              },
-            ],
-          },
-        },
-      });
-      return this.asDetail(completed as TransferRow, input.senderCustomerId);
-    } catch (error) {
-      if (error instanceof LedgerCallError && error.status < 500) {
-        const failed = await this.prisma.client.transfer.update({
-          where: { id: prepared.row.id },
-          data: {
-            status: 'FAILED',
-            failureCode: safeFailure(error.code),
-            failedAt: new Date(),
-            events: {
-              create: {
-                eventType: 'FAILED',
-                previousStatus: 'PROCESSING',
-                nextStatus: 'FAILED',
-                safeCode: safeFailure(error.code),
-                occurredAt: new Date(),
-              },
-            },
-          },
-        });
-        return this.asDetail(failed as TransferRow, input.senderCustomerId);
-      }
-      return this.asDetail(prepared.row, input.senderCustomerId);
-    }
+    return this.asDetail(
+      await this.settle(prepared.row, correlationId),
+      input.senderCustomerId,
+    );
   }
 
   async list(
@@ -501,45 +509,66 @@ export class TransfersService {
     return this.asDetail(row as TransferRow, customerId);
   }
   async recover(): Promise<{ processed: number }> {
-    const stale = await this.prisma.client.transfer.findMany({
-      where: {
-        status: 'PROCESSING',
-        updatedAt: {
-          lt: new Date(Date.now() - this.config.recoveryStaleSeconds * 1000),
-        },
-      },
-      take: 20,
-      orderBy: { updatedAt: 'asc' },
-    });
-    for (const row of stale) {
-      await this.prisma.client.transfer.update({
-        where: { id: row.id },
-        data:
-          row.attemptCount + 1 >= this.config.maxProcessingAttempts
-            ? {
-                status: 'REQUIRES_REVIEW',
-                attemptCount: { increment: 1 },
-                events: {
-                  create: {
-                    eventType: 'REQUIRES_REVIEW',
-                    previousStatus: 'PROCESSING',
-                    nextStatus: 'REQUIRES_REVIEW',
-                    occurredAt: new Date(),
-                  },
-                },
-              }
-            : {
-                attemptCount: { increment: 1 },
-                nextAttemptAt: new Date(),
-                events: {
-                  create: {
-                    eventType: 'RECOVERY_RETRY',
-                    occurredAt: new Date(),
-                  },
+    const claimed = await this.prisma.client.$transaction(async (tx) => {
+      const staleBefore = new Date(
+        Date.now() - this.config.recoveryStaleSeconds * 1000,
+      );
+      const ids = await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT "id"
+        FROM "app"."transfers"
+        WHERE "status" = 'PROCESSING'
+          AND "updated_at" < ${staleBefore}
+          AND ("next_attempt_at" IS NULL OR "next_attempt_at" <= CURRENT_TIMESTAMP)
+        ORDER BY "updated_at", "id"
+        FOR UPDATE SKIP LOCKED
+        LIMIT 20
+      `;
+      const rows: TransferRow[] = [];
+      for (const { id } of ids) {
+        const current = (await tx.transfer.findUniqueOrThrow({
+          where: { id },
+        })) as TransferRow;
+        const nextAttempt = current.attemptCount + 1;
+        if (nextAttempt >= this.config.maxProcessingAttempts) {
+          await tx.transfer.update({
+            where: { id },
+            data: {
+              status: 'REQUIRES_REVIEW',
+              attemptCount: nextAttempt,
+              nextAttemptAt: null,
+              events: {
+                create: {
+                  eventType: 'REQUIRES_REVIEW',
+                  previousStatus: 'PROCESSING',
+                  nextStatus: 'REQUIRES_REVIEW',
+                  occurredAt: new Date(),
                 },
               },
-      });
-    }
-    return { processed: stale.length };
+            },
+          });
+          continue;
+        }
+        rows.push(
+          (await tx.transfer.update({
+            where: { id },
+            data: {
+              attemptCount: nextAttempt,
+              nextAttemptAt: new Date(
+                Date.now() + this.config.recoveryStaleSeconds * 1000,
+              ),
+              events: {
+                create: {
+                  eventType: 'RECOVERY_RETRY',
+                  occurredAt: new Date(),
+                },
+              },
+            },
+          })) as TransferRow,
+        );
+      }
+      return { selected: ids.length, retry: rows };
+    });
+    for (const row of claimed.retry) await this.settle(row, row.correlationId);
+    return { processed: claimed.selected };
   }
 }
