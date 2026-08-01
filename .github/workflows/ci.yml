@@ -83,20 +83,26 @@ jobs:
       IDENTITY_REDIS_PREFIX: 'aegis:identity:test:ci:'
       DEMO_AUTH_ENABLED: true
       FIELD_ENCRYPTION_KEY: CI_ONLY_NOT_PRODUCTION_KEY
-      # Inclusive-channel configuration. Payments now requires these to build
-      # its configuration at all, so anything that constructs it — the service
-      # itself, and the reconciliation script — needs them present.
-      #
-      # They are declared here rather than inherited from the committed
-      # .env.example: relying on an example file to supply a required secret in
-      # CI is implicit, and it hides exactly this class of failure until a step
-      # that happens to run without it falls over. Every value is obviously fake
-      # and CI-only.
+      # Inclusive payment channels
       PAYMENTS_QR_SIGNING_KEY: ci-only-not-production-qr-signing-key
       PAYMENTS_QR_DYNAMIC_TTL_SECONDS: 300
       PAYMENTS_QR_STATIC_TTL_HOURS: 8760
       USSD_PROVIDER_SECRET: ci-only-not-production-ussd-provider-secret
       PAYMENTS_REDIS_PREFIX: 'aegis:payments:test:ci:'
+      # SABCL. SABCL_MODE is deliberately NOT set here. Setting it job-wide
+      # would make every service load a SABCL environment, and with no key
+      # material configured a strict load fails at startup — which would break
+      # the existing Identity, Ledger, Payments, Gateway and Playwright suites
+      # that need those services running on their direct paths.
+      #
+      # Strict mode is exercised instead by suites that build their own keyring
+      # from deterministic fixtures: `sabcl:test:e2e` runs a full encrypted
+      # journey over real sockets with mode 'strict', and the SABCL package
+      # suite covers strict startup validation, placeholder refusal and fixture
+      # refusal.
+      SABCL_ROUTER_PORT: 4103
+      SABCL_ROUTER_URL: http://127.0.0.1:4103
+      SABCL_REDIS_PREFIX: 'aegis:sabcl:test:ci:'
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -127,6 +133,14 @@ jobs:
         run: node --test infra/scripts/infra.test.mjs
       - name: Test shared contracts
         run: pnpm --filter @aegis/contracts test
+      # The SABCL package is built by its own test script, and the gateway and
+      # router suites import its dist output, so it runs before them.
+      - name: Test SABCL protocol, crypto, padding, rotation and route tokens
+        run: pnpm sabcl:test
+      - name: Test SABCL metadata leakage against seeded sensitive values
+        run: pnpm sabcl:test:leakage
+      - name: Test SABCL blind router routing, replay and rate limits
+        run: pnpm --filter @aegis/sabcl-router test
       - name: Test Identity service
         run: pnpm --filter @aegis/identity-service test
       - name: Test Identity transfer step-up
@@ -135,9 +149,6 @@ jobs:
         run: pnpm ledger:test
       - name: Test Payments units
         run: pnpm payments:test
-      # Named steps for the inclusive channels, so a channel regression is
-      # identifiable from the CI summary instead of being one line inside a
-      # combined Payments run.
       - name: Test Payments application startup and channel configuration
         run: pnpm payments:test:startup
       - name: Test QR signing, tampering, expiry and replay
@@ -150,6 +161,10 @@ jobs:
         run: pnpm ledger:test:integration
       - name: Test Payments PostgreSQL transfer processing
         run: pnpm payments:test:integration
+      - name: Test SABCL router with real Redis replay state
+        run: pnpm sabcl:test:integration
+      - name: Test strict-mode encrypted end-to-end journey through the router
+        run: pnpm sabcl:test:e2e
       - name: Test API Gateway
         run: pnpm --filter @aegis/api-gateway test
       - name: Test authentication end to end

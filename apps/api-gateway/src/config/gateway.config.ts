@@ -14,6 +14,9 @@ export interface GatewayConfig {
   identityTimeoutMs: number;
   ledgerTimeoutMs: number;
   paymentsTimeoutMs: number;
+  /** Blind router base URL. Server-side only; never sent to a browser. */
+  sabclRouterUrl: string;
+  sabclTimeoutMs: number;
 }
 
 export const GATEWAY_CONFIG = Symbol('GATEWAY_CONFIG');
@@ -56,12 +59,18 @@ export function createGatewayConfig(): GatewayConfig {
     identityTimeoutMs: integerSetting('IDENTITY_HTTP_TIMEOUT_MS', 3_000),
     ledgerTimeoutMs: integerSetting('LEDGER_HTTP_TIMEOUT_MS', 5_000),
     paymentsTimeoutMs: integerSetting('PAYMENTS_HTTP_TIMEOUT_MS', 5_000),
+    sabclRouterUrl:
+      process.env.SABCL_ROUTER_URL?.trim() || 'http://127.0.0.1:4103',
+    // The router adds a hop, so its budget is the upstream budget plus headroom
+    // rather than the same number.
+    sabclTimeoutMs: integerSetting('SABCL_HTTP_TIMEOUT_MS', 8_000),
   };
 
   for (const [name, value] of [
     ['IDENTITY_SERVICE_URL', configuration.identityServiceUrl],
     ['LEDGER_SERVICE_URL', configuration.ledgerServiceUrl],
     ['PAYMENTS_SERVICE_URL', configuration.paymentsServiceUrl],
+    ['SABCL_ROUTER_URL', configuration.sabclRouterUrl],
   ] as const) {
     if (!['http:', 'https:'].includes(new URL(value).protocol)) {
       throw new Error(`${name} must use HTTP or HTTPS.`);

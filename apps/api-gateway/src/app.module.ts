@@ -5,12 +5,16 @@ import { AuthRateLimitMiddleware } from './common/http/auth-rate-limit.middlewar
 import { CorrelationMiddleware } from './common/http/correlation.middleware';
 import { GatewayConfigModule } from './config/gateway-config.module';
 import { HealthModule } from './health/health.module';
+import { GatewaySabclModule } from './sabcl/sabcl.module';
 import { TransfersModule } from './transfers/transfers.module';
 import { ChannelsModule } from './channels/channels.module';
 
 @Module({
   imports: [
     GatewayConfigModule,
+    // Imported before the feature modules so the transport is available to the
+    // ledger and payments clients they construct.
+    GatewaySabclModule,
     AuthModule,
     AccountsModule,
     TransfersModule,

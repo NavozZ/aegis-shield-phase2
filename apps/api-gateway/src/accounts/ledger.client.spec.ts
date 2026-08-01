@@ -2,6 +2,7 @@ import { customerAccountListSchema } from '@aegis/contracts';
 import type { GatewayConfig } from '../config/gateway.config';
 import type { RequestContext } from '../common/http/request-context';
 import { LedgerClient } from './ledger.client';
+import type { SabclTransportService } from '../sabcl/sabcl-transport.service';
 
 const correlationId = '33333333-3333-4333-8333-333333333333';
 const internalToken = 'ledger-internal-token-value';
@@ -37,9 +38,21 @@ function mockFetch(response: { ok: boolean; status: number; body: unknown }): {
   };
 }
 
+/**
+ * SABCL disabled. These cases cover the direct internal path, which is what
+ * runs when SABCL_MODE=off, and they must keep passing unchanged — the whole
+ * point of the adapter is that it does not alter existing behaviour.
+ * The encrypted path has its own cases in ledger.client.sabcl.spec.ts.
+ */
+const sabclDisabled = {
+  enabled: false,
+  strict: false,
+  mode: 'off',
+} as unknown as SabclTransportService;
+
 describe('LedgerClient', () => {
   const originalFetch = globalThis.fetch;
-  const client = new LedgerClient(config);
+  const client = new LedgerClient(config, sabclDisabled);
 
   afterEach(() => {
     globalThis.fetch = originalFetch;

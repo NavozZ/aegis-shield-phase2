@@ -5,6 +5,7 @@ import { QrService } from './qr/qr.service';
 import { TransfersService } from './transfers/transfers.service';
 import { UssdService } from './ussd/ussd.service';
 import { LedgerClient } from './transfers/ledger.client';
+import { PaymentsSabclService } from './sabcl/sabcl.service';
 import {
   PAYMENTS_CONFIG,
   type PaymentsConfig,
@@ -27,7 +28,14 @@ import {
  * `compile()` builds that graph without running lifecycle hooks, so this test
  * needs no database, no Redis and no ports, and runs in the ordinary unit
  * suite where it will be seen immediately.
+ *
+ * dotenv is stubbed out because both createPaymentsConfig and the SABCL
+ * recipient runtime read the repository-root `.env` at call time. Without the
+ * stub the graph is assembled from whatever a developer happens to have in that
+ * file — a stale SABCL_MODE there fails the suite for reasons that have nothing
+ * to do with the code under test.
  */
+jest.mock('dotenv', () => ({ config: jest.fn() }));
 
 /** Deterministic, obviously fake configuration. Never real key material. */
 const TEST_ENVIRONMENT: Record<string, string> = {
@@ -44,16 +52,25 @@ const TEST_ENVIRONMENT: Record<string, string> = {
   USSD_PROVIDER_SECRET: 'test-only-ussd-provider-secret',
   REDIS_URL: 'redis://127.0.0.1:6379/0',
   PAYMENTS_REDIS_PREFIX: 'aegis:payments:test:app-module:',
+  // SABCL off is the default posture: the recipient is registered but not
+  // wired in. What matters for this suite is that the Prompt 09 module can sit
+  // in the same graph as the Prompt 08 channels without either breaking the
+  // other. The SABCL package has its own suites for strict and compatible mode.
+  SABCL_MODE: 'off',
 };
 
 describe('Payments AppModule', () => {
   const original = { ...process.env };
 
   beforeEach(() => {
-    // Start from a clean slate so a developer's local .env cannot make a
-    // missing variable look present.
+    // Start from a clean slate so an inherited value cannot make a missing
+    // variable look present, or a stale one break an unrelated assertion.
     for (const name of Object.keys(process.env)) {
-      if (name.startsWith('PAYMENTS_') || name.startsWith('USSD_')) {
+      if (
+        name.startsWith('PAYMENTS_') ||
+        name.startsWith('USSD_') ||
+        name.startsWith('SABCL_')
+      ) {
         delete process.env[name];
       }
     }
@@ -74,6 +91,30 @@ describe('Payments AppModule', () => {
     expect(moduleRef.get(QrService, { strict: false })).toBeDefined();
     expect(moduleRef.get(AgentService, { strict: false })).toBeDefined();
     expect(moduleRef.get(UssdService, { strict: false })).toBeDefined();
+    expect(
+      moduleRef.get(PaymentsSabclService, { strict: false }),
+    ).toBeDefined();
+
+    await moduleRef.close();
+  });
+
+  it('registers the Prompt 08 channels and the Prompt 09 SABCL recipient together', async () => {
+    // The integration assertion: both phases occupy the same provider graph.
+    // Either one failing to construct takes down the whole Payments service,
+    // which is how the earlier UssdModule defect broke transfers.
+    const moduleRef = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
+
+    const sabcl = moduleRef.get(PaymentsSabclService, { strict: false });
+    expect(sabcl).toBeInstanceOf(PaymentsSabclService);
+    // SABCL_MODE=off, so the recipient is present but deliberately not wired in.
+    expect(sabcl.enabled).toBe(false);
+    expect(sabcl.mode).toBe('off');
+
+    for (const service of [QrService, AgentService, UssdService]) {
+      expect(moduleRef.get(service, { strict: false })).toBeDefined();
+    }
 
     await moduleRef.close();
   });

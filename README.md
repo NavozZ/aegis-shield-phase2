@@ -2,7 +2,7 @@
 
 AEGIS Shield is a zero-trust, resilient, and inclusive digital banking platform with SABCL metadata protection. This monorepo is the official Duothan 6.0 Phase 2 workspace for demonstrating secure banking journeys under normal operation, active threats, and service failure.
 
-> **Current status:** Prompt 07 secure synthetic customer transfers. The multilingual web UI, API Gateway, independent Identity, Payments and Ledger services, protected authorization, recovery, reconciliation, and real browser validation are implemented.
+> **Current status:** Prompt 09 SABCL privacy and secure routing. The multilingual web UI, API Gateway, independent Identity, Payments and Ledger services, protected authorization, recovery, reconciliation, real browser validation, and the SABCL blind router with encrypted service envelopes are implemented.
 
 ## Core problem
 
@@ -12,7 +12,9 @@ Digital banking platforms must preserve financial correctness and service availa
 
 AEGIS Shield will separate banking capabilities into independently secured services with database-per-service ownership. Zero-trust customer and workload authentication, double-entry accounting, idempotent payments, threat detection, service quarantine, tamper-evident audit, and tested recovery will form complementary controls rather than one security boundary.
 
-SABCL (Security-Aware Blind Communication Layer) is the project's signature metadata-protection concept. A later milestone will compare ordinary internal traffic with SABCL-protected communication in a controlled demonstration.
+SABCL (Security-Aware Blind Communication Layer) is the project's signature metadata-protection concept, implemented in Prompt 09. Internal service calls are sealed with X25519, HKDF-SHA-256, AES-256-GCM and Ed25519 before they reach a blind router that forwards them without holding any key that opens them. Customer identifiers, account identifiers, amounts, recipient references, endpoint paths, operation names and PIN authorisation never appear in the routing envelope.
+
+What it does not do is documented as carefully as what it does: padding hides exact payload size within a bucket and nothing more, and nothing protects a payload once the recipient has decrypted it. See the [protocol specification](docs/security/sabcl-protocol.md) and [metadata leakage analysis](docs/security/sabcl-metadata-leakage.md).
 
 ## Implemented scope
 
@@ -53,8 +55,9 @@ SABCL (Security-Aware Blind Communication Layer) is the project's signature meta
 - Immutable `CUSTOMER_TRANSFER` journals with deterministic locks and exact BigInt balances
 - Sent/received history, masked previews, printable receipts, EN/SI/TA, responsive and axe coverage
 - Reserved boundaries for future services, shared packages, and infrastructure
+- SABCL/1 encrypted service envelopes, an independent blind router on port 4103, opaque route tokens, capability path allowlists, Redis-backed replay protection, key rotation and revocation, and an operator status page
 
-External payment rails, QR/offline payments, SABCL, threat detection, service quarantine, production messaging, and disaster recovery are intentionally deferred.
+External payment rails, QR/offline payments, threat detection, service quarantine, production messaging, and disaster recovery are intentionally deferred.
 
 ## Monorepo structure
 
@@ -73,8 +76,11 @@ External payment rails, QR/offline payments, SABCL, threat detection, service qu
 |-- infra/                    # Local data infrastructure, checks, and documentation
 |-- docker-compose.yml        # Loopback-only PostgreSQL and Redis services
 |-- packages/contracts/       # Versioned shared runtime auth and account schemas
+|-- packages/sabcl/           # SABCL/1 protocol: envelopes, crypto, keys, routing
 |-- services/identity/        # Private customer identity service
 |-- services/ledger/          # Private accounts and double-entry ledger service
+|-- services/payments/        # Private customer transfer orchestration service
+|-- services/sabcl-router/    # Blind router: forwards envelopes it cannot read
 |-- package.json              # Root scripts and tool versions
 |-- pnpm-lock.yaml            # Single dependency lockfile
 |-- pnpm-workspace.yaml       # Workspace and build-policy configuration
@@ -230,12 +236,44 @@ Money is stored and transported as integer minor units, never as a JavaScript nu
 
 See [Architecture Documentation](docs/architecture/README.md), [Identity README](services/identity/README.md), [Ledger README](services/ledger/README.md), [ADR 0004](docs/decisions/0004-identity-and-session-authentication.md), [ADR 0005](docs/decisions/0005-authentication-user-experience.md), [ADR 0006](docs/decisions/0006-accounts-and-double-entry-ledger.md), the [authentication demo](docs/demo/authentication-demo.md), the [accounts and ledger demo](docs/demo/accounts-ledger-demo.md), the [authentication threat model](docs/security/authentication-threat-model.md), and the [ledger integrity model](docs/security/ledger-integrity-model.md).
 
+## SABCL privacy and secure routing
+
+Every integrated Gateway call to Identity, Ledger or Payments is sealed before it
+leaves the Gateway process and opened only inside the service that owns the data.
+The router between them resolves an opaque route token to an allowlisted
+destination and forwards the bytes; it holds no key that opens them.
+
+```bash
+pnpm sabcl:keys -- --service gateway --version 1   # generate an identity
+pnpm sabcl:keys -- --route-secret                  # generate the route secret
+pnpm sabcl:test                                    # protocol, crypto, rotation
+pnpm sabcl:test:leakage                            # metadata leakage scan
+pnpm sabcl:test:router                             # routing, replay, rate limits
+pnpm sabcl:test:integration                        # + real Redis   (infra:up)
+pnpm sabcl:test:e2e                                # strict-mode journey (infra:up)
+```
+
+Set `SABCL_MODE=strict` to require the encrypted path with no fallback,
+`compatible` for a documented local fallback (refused in production), or `off` to
+keep the pre-Prompt-09 direct calls.
+
+See the [SABCL router README](services/sabcl-router/README.md),
+[protocol specification](docs/security/sabcl-protocol.md),
+[ADR 0009](docs/decisions/0009-sabcl-privacy-and-secure-routing.md),
+[threat model](docs/security/sabcl-threat-model.md),
+[metadata leakage analysis](docs/security/sabcl-metadata-leakage.md),
+[replay and expiry design](docs/security/sabcl-replay-and-expiry.md),
+[key management and rotation](docs/security/sabcl-key-management.md),
+[route-token provisioning](docs/security/sabcl-route-provisioning.md),
+[operations runbook](docs/security/sabcl-runbook.md), and the
+[SABCL routing demo](docs/demo/sabcl-routing-demo.md).
+
 ## Next milestones
 
 - production workload identity and OTP delivery
 - transaction history and statements
 - idempotent transfers, payments, and inclusive access channels
-- SABCL metadata-protection path
+- ~~SABCL metadata-protection path~~ — implemented in Prompt 09
 - threat detection and service quarantine
 - observability, audit integrity, and recovery
 
