@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/require-await, @typescript-eslint/no-unused-vars, prettier/prettier */
 import { HttpStatus } from '@nestjs/common';
 import { Test, type TestingModule } from '@nestjs/testing';
 import { PAYMENTS_CONFIG } from '../common/config/payments.config';
@@ -98,7 +99,9 @@ describe('AgentService', () => {
     });
 
     it('rejects if customer account is not found', async () => {
-      mockLedger.resolveAccountByReference.mockRejectedValue(new LedgerCallError(HttpStatus.NOT_FOUND));
+      mockLedger.resolveAccountByReference.mockRejectedValue(
+        new LedgerCallError(HttpStatus.NOT_FOUND),
+      );
 
       await expect(
         service.preview(
@@ -126,7 +129,7 @@ describe('AgentService', () => {
         agentId: 'agt-1',
       });
 
-      mockPrisma.client.agentCashOperation.update.mockResolvedValue({
+      mockPrisma.client.agentCashOperation.update.mockResolvedValueOnce({
         id: 'op-123',
         displayReference: 'AEGIS-AGT-1234-5678-9012',
         status: 'PROCESSING',

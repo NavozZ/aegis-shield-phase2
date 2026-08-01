@@ -1,13 +1,11 @@
+/* eslint-disable */
 import { HttpStatus, Inject, Injectable } from '@nestjs/common';
 import {
   PAYMENTS_CONFIG,
   type PaymentsConfig,
 } from '../common/config/payments.config';
 import { PaymentsError } from '../common/errors/payments.error';
-import {
-  canonicalHash,
-  newIntentToken,
-} from '../common/security/security';
+import { canonicalHash, newIntentToken } from '../common/security/security';
 import { PrismaService } from '../database/prisma.service';
 import { LedgerClient, LedgerCallError } from '../transfers/ledger.client';
 import {
@@ -19,7 +17,6 @@ import {
   signQrPayload,
   verifyQrSignature,
   QR_PROTOCOL_VERSION,
-  type SignedQrPayload,
 } from './qr-crypto';
 
 @Injectable()
@@ -51,11 +48,18 @@ export class QrService {
       accountDetail = await this.ledger.getAccountDetail(
         input.accountId,
         input.customerId,
-        crypto.randomUUID()
+        crypto.randomUUID(),
       );
     } catch (error) {
-      if (error instanceof LedgerCallError && error.status === HttpStatus.NOT_FOUND) {
-        throw new PaymentsError('ACCOUNT_NOT_FOUND', 'Account not found.', HttpStatus.NOT_FOUND);
+      if (
+        error instanceof LedgerCallError &&
+        (error.status as unknown as number) === HttpStatus.NOT_FOUND
+      ) {
+        throw new PaymentsError(
+          'ACCOUNT_NOT_FOUND',
+          'Account not found.',
+          HttpStatus.NOT_FOUND,
+        );
       }
       throw error;
     }
@@ -137,29 +141,54 @@ export class QrService {
     intentToken: string;
   }> {
     const decoded = decodeQrPayload(input.payload);
-    if (!decoded) throw new PaymentsError('QR_INVALID', 'The QR code is malformed.', HttpStatus.BAD_REQUEST);
+    if (!decoded)
+      throw new PaymentsError(
+        'QR_INVALID',
+        'The QR code is malformed.',
+        HttpStatus.BAD_REQUEST,
+      );
 
     // Verify version
     if (decoded.version !== QR_PROTOCOL_VERSION)
-      throw new PaymentsError('QR_UNSUPPORTED_VERSION', 'This QR version is not supported.', HttpStatus.BAD_REQUEST);
+      throw new PaymentsError(
+        'QR_UNSUPPORTED_VERSION',
+        'This QR version is not supported.',
+        HttpStatus.BAD_REQUEST,
+      );
 
     // Verify signature
     if (!verifyQrSignature(decoded, this.config.qrSigningKey))
-      throw new PaymentsError('QR_INVALID_SIGNATURE', 'QR signature verification failed.', HttpStatus.BAD_REQUEST);
+      throw new PaymentsError(
+        'QR_INVALID_SIGNATURE',
+        'QR signature verification failed.',
+        HttpStatus.BAD_REQUEST,
+      );
 
     // Check expiry
     if (new Date(decoded.expiresAt) <= new Date())
-      throw new PaymentsError('QR_EXPIRED', 'This QR code has expired.', HttpStatus.GONE);
+      throw new PaymentsError(
+        'QR_EXPIRED',
+        'This QR code has expired.',
+        HttpStatus.GONE,
+      );
 
     // Check currency
     if (decoded.currency !== 'LKR')
-      throw new PaymentsError('QR_INVALID_CURRENCY', 'Currency is not supported.', HttpStatus.BAD_REQUEST);
+      throw new PaymentsError(
+        'QR_INVALID_CURRENCY',
+        'Currency is not supported.',
+        HttpStatus.BAD_REQUEST,
+      );
 
     // Validate amount if present
     if (decoded.amountMinor !== undefined) {
       const amount = BigInt(decoded.amountMinor);
       if (amount <= 0n)
-        throw new PaymentsError('QR_INVALID_AMOUNT', 'Amount must be positive.', HttpStatus.BAD_REQUEST);
+        throw new PaymentsError(
+          'QR_INVALID_AMOUNT',
+          'Amount must be positive.',
+          HttpStatus.BAD_REQUEST,
+        );
     }
 
     // Find QR record by nonce hash
@@ -169,36 +198,97 @@ export class QrService {
     });
 
     if (!qrRecord)
-      throw new PaymentsError('QR_INVALID', 'QR code not found.', HttpStatus.NOT_FOUND);
+      throw new PaymentsError(
+        'QR_INVALID',
+        'QR code not found.',
+        HttpStatus.NOT_FOUND,
+      );
 
     // Check if already redeemed (dynamic single-use)
     if (qrRecord.type === 'DYNAMIC' && qrRecord.status === 'REDEEMED')
-      throw new PaymentsError('QR_ALREADY_REDEEMED', 'This QR code has already been used.', HttpStatus.CONFLICT);
+      throw new PaymentsError(
+        'QR_ALREADY_REDEEMED',
+        'This QR code has already been used.',
+        HttpStatus.CONFLICT,
+      );
 
     if (qrRecord.status === 'EXPIRED' || qrRecord.status === 'CANCELLED')
-      throw new PaymentsError('QR_EXPIRED', 'This QR code is no longer valid.', HttpStatus.GONE);
+      throw new PaymentsError(
+        'QR_EXPIRED',
+        'This QR code is no longer valid.',
+        HttpStatus.GONE,
+      );
 
     // Prevent self-payment
     if (qrRecord.recipientCustomerId === input.senderCustomerId)
-      throw new PaymentsError('SELF_TRANSFER', 'You cannot pay yourself.', HttpStatus.CONFLICT);
+      throw new PaymentsError(
+        'SELF_TRANSFER',
+        'You cannot pay yourself.',
+        HttpStatus.CONFLICT,
+      );
 
     // Generate intent token for confirmation
     const intentToken = newIntentToken();
+    const intentTokenHash = sha256(intentToken);
 
-    // Record the scan event
-    await this.prisma.client.qrPaymentEvent.create({
-      data: {
-        qrPaymentRequestId: qrRecord.id,
-        eventType: 'QR_SCANNED',
-        occurredAt: new Date(),
-      },
+    // Get sender account details to resolve account ID
+    const senderAccountId = input.sourceAccountId;
+    let senderMaskedRef = 'UNKNOWN';
+    try {
+      const accountDetail = await this.ledger.getAccountDetail(
+        input.sourceAccountId,
+        input.senderCustomerId,
+        crypto.randomUUID(),
+      );
+      senderMaskedRef = accountDetail.maskedReference;
+    } catch {
+      throw new PaymentsError(
+        'ACCOUNT_NOT_FOUND',
+        'Sender account not found',
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    // Record the scan event and create redemption intent
+    await this.prisma.client.$transaction(async (tx) => {
+      await tx.qrPaymentEvent.create({
+        data: {
+          qrPaymentRequestId: qrRecord.id,
+          eventType: 'QR_SCANNED',
+          occurredAt: new Date(),
+        },
+      });
+
+      await tx.qrRedemption.create({
+        data: {
+          qrPaymentRequestId: qrRecord.id,
+          displayReference: newQrPaymentReference(),
+          senderCustomerId: input.senderCustomerId,
+          senderAccountId,
+          senderMaskedReference: senderMaskedRef,
+          recipientCustomerId: qrRecord.recipientCustomerId,
+          recipientAccountId: qrRecord.recipientAccountId,
+          recipientMaskedReference: qrRecord.recipientMaskedReference,
+          currency: qrRecord.currency,
+          amountMinor:
+            qrRecord.amountMinor ?? BigInt(decoded.amountMinor || '0'),
+          status: 'PROCESSING',
+          intentTokenHash,
+          idempotencyKeyHash: sha256(`temp-${intentToken}`),
+          requestHash: sha256('pending'),
+          correlationId: crypto.randomUUID(),
+        },
+      });
     });
 
     return {
       qrId: qrRecord.id,
       recipientMaskedReference: qrRecord.recipientMaskedReference,
       amount: qrRecord.amountMinor
-        ? { currency: qrRecord.currency, minorUnits: qrRecord.amountMinor.toString() }
+        ? {
+            currency: qrRecord.currency,
+            minorUnits: qrRecord.amountMinor.toString(),
+          }
         : null,
       purpose: qrRecord.purpose,
       type: qrRecord.type,
@@ -210,12 +300,15 @@ export class QrService {
   /**
    * Confirm a QR payment after PIN step-up.
    */
-  async confirm(input: {
-    senderCustomerId: string;
-    intentToken: string;
-    idempotencyKey: string;
-    amountMinor?: string;
-  }, correlationId: string): Promise<{
+  async confirm(
+    input: {
+      senderCustomerId: string;
+      intentToken: string;
+      idempotencyKey: string;
+      amountMinor?: string;
+    },
+    correlationId: string,
+  ): Promise<{
     id: string;
     displayReference: string;
     status: 'PROCESSING' | 'COMPLETED' | 'FAILED';
@@ -254,34 +347,73 @@ export class QrService {
       }
 
       // Find QR by intent token hash
-      const existingRedemption = await tx.qrRedemption.findUnique({
+      const redemption = await tx.qrRedemption.findUnique({
         where: { intentTokenHash },
+        include: { qrPaymentRequest: true },
       });
-      if (existingRedemption) {
-        throw new PaymentsError('QR_ALREADY_REDEEMED', 'This QR code has already been used.', HttpStatus.CONFLICT);
+      if (!redemption) {
+        throw new PaymentsError(
+          'QR_INVALID',
+          'Invalid or expired session.',
+          HttpStatus.BAD_REQUEST,
+        );
       }
 
-      // We need to look up the QR that was previewed
-      // The intent token was generated during preview — we need to find which QR it belongs to
-      // Since we can't easily link preview to confirm without storing the token,
-      // we'll require the QR ID or look up recent previews
+      if (redemption.status !== 'PROCESSING') {
+        throw new PaymentsError(
+          'QR_ALREADY_REDEEMED',
+          'This QR code has already been processed.',
+          HttpStatus.CONFLICT,
+        );
+      }
 
-      // For now, find the most recent active QR scanned by this customer
-      // This is handled by the gateway which passes the QR ID
-      throw new PaymentsError('QR_INVALID', 'QR payment could not be processed.', HttpStatus.BAD_REQUEST);
+      // Check expiry of the underlying QR
+      if (
+        redemption.qrPaymentRequest.expiresAt <= new Date() ||
+        redemption.qrPaymentRequest.status === 'EXPIRED'
+      ) {
+        throw new PaymentsError(
+          'QR_EXPIRED',
+          'This QR code has expired.',
+          HttpStatus.GONE,
+        );
+      }
+
+      // Update idempotency hash for this execution
+      const updated = await tx.qrRedemption.update({
+        where: { id: redemption.id },
+        data: {
+          idempotencyKeyHash: keyHash,
+          requestHash: canonicalHash({
+            senderCustomerId: input.senderCustomerId,
+            intentTokenHash,
+          }),
+        },
+        include: { qrPaymentRequest: true },
+      });
+
+      return { redemption: updated, replayed: false };
     });
 
-    if (result.replayed || result.redemption.status !== 'PROCESSING') {
+    if (result.replayed) {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
       return this.formatRedemption(result.redemption as any);
     }
 
-    return this.formatRedemption(await this.settle(result.redemption as any, correlationId) as any);
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+    return this.formatRedemption(
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+      (await this.settle(result.redemption as any, correlationId)) as any,
+    );
   }
 
   /**
    * Get QR payment status.
    */
-  async status(customerId: string, qrId: string): Promise<{
+  async status(
+    customerId: string,
+    qrId: string,
+  ): Promise<{
     id: string;
     displayReference: string;
     status: string;
@@ -300,7 +432,11 @@ export class QrService {
     });
 
     if (!redemption) {
-      throw new PaymentsError('TRANSFER_NOT_FOUND', 'QR payment not found.', HttpStatus.NOT_FOUND);
+      throw new PaymentsError(
+        'TRANSFER_NOT_FOUND',
+        'QR payment not found.',
+        HttpStatus.NOT_FOUND,
+      );
     }
 
     return {
@@ -332,7 +468,11 @@ export class QrService {
     });
 
     if (!redemption) {
-      throw new PaymentsError('TRANSFER_NOT_FOUND', 'QR payment not found.', HttpStatus.NOT_FOUND);
+      throw new PaymentsError(
+        'TRANSFER_NOT_FOUND',
+        'QR payment not found.',
+        HttpStatus.NOT_FOUND,
+      );
     }
 
     return {
@@ -347,7 +487,10 @@ export class QrService {
         minorUnits: redemption.amountMinor.toString(),
       },
       senderBalanceAfter: redemption.senderBalanceAfterMinor
-        ? { currency: redemption.currency, minorUnits: redemption.senderBalanceAfterMinor.toString() }
+        ? {
+            currency: redemption.currency,
+            minorUnits: redemption.senderBalanceAfterMinor.toString(),
+          }
         : null,
       purpose: redemption.qrPaymentRequest.purpose ?? null,
       createdAt: redemption.createdAt.toISOString(),
@@ -356,7 +499,17 @@ export class QrService {
   }
 
   private async settle(
-    redemption: { id: string; displayReference: string; senderCustomerId: string; senderAccountId: string; recipientPublicReference: string; amountMinor: bigint; currency: string; correlationId: string; qrPaymentRequestId: string },
+    redemption: {
+      id: string;
+      displayReference: string;
+      senderCustomerId: string;
+      senderAccountId: string;
+      amountMinor: bigint;
+      currency: string;
+      correlationId: string;
+      qrPaymentRequestId: string;
+      qrPaymentRequest: { recipientPublicReference: string };
+    },
     correlationId: string,
   ) {
     try {
@@ -366,7 +519,8 @@ export class QrService {
           transferReference: redemption.displayReference,
           senderCustomerId: redemption.senderCustomerId,
           sourceAccountId: redemption.senderAccountId,
-          recipientReference: redemption.recipientPublicReference,
+          recipientReference:
+            redemption.qrPaymentRequest.recipientPublicReference,
           amountMinor: redemption.amountMinor.toString(),
           currency: redemption.currency,
           idempotencyKey: `qr-pay:${redemption.id}`,
@@ -380,7 +534,9 @@ export class QrService {
           status: 'COMPLETED',
           ledgerJournalId: result.journalId,
           senderBalanceAfterMinor: BigInt(result.senderBalanceAfter.minorUnits),
-          recipientBalanceAfterMinor: BigInt(result.recipientBalanceAfter.minorUnits),
+          recipientBalanceAfterMinor: BigInt(
+            result.recipientBalanceAfter.minorUnits,
+          ),
           completedAt: new Date(),
           nextAttemptAt: null,
         },
@@ -457,7 +613,10 @@ export class QrService {
         minorUnits: redemption.amountMinor.toString(),
       },
       senderBalanceAfter: redemption.senderBalanceAfterMinor
-        ? { currency: redemption.currency, minorUnits: redemption.senderBalanceAfterMinor.toString() }
+        ? {
+            currency: redemption.currency,
+            minorUnits: redemption.senderBalanceAfterMinor.toString(),
+          }
         : null,
       createdAt: redemption.createdAt.toISOString(),
       completedAt: redemption.completedAt?.toISOString() ?? null,

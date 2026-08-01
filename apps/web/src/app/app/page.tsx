@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { AccountPanel } from '@/components/accounts/account-panel';
 import { RecentActivity } from '@/components/accounts/recent-activity';
-import { EmptyFeatureCard, SessionCard } from '@/components/ui/session-card';
+import { SessionCard } from '@/components/ui/session-card';
 import { getServerAccount } from '@/lib/accounts/server-accounts';
 import { getServerTransactions } from '@/lib/accounts/server-transactions';
 import { getServerSession } from '@/lib/auth/server-session';
@@ -18,10 +18,7 @@ export default async function WorkspacePage() {
     accountState.status === 'ready' && accountState.account
       ? await getServerTransactions(accountState.account.id, '?pageSize=5')
       : undefined;
-  const cards = [
-    [dictionary.qrCard, dictionary.comingLater],
-    [dictionary.recoveryCard, dictionary.comingLater],
-  ];
+  
   return (
     <div className="workspace-content">
       <div className="workspace-title">

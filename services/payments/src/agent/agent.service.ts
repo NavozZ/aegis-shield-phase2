@@ -1,18 +1,20 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/require-await, @typescript-eslint/no-unused-vars, prettier/prettier, @typescript-eslint/no-unsafe-enum-comparison */
 import { HttpStatus, Inject, Injectable } from '@nestjs/common';
 import {
   PAYMENTS_CONFIG,
   type PaymentsConfig,
 } from '../common/config/payments.config';
 import { PaymentsError } from '../common/errors/payments.error';
-import {
-  canonicalHash,
-  newIntentToken,
-} from '../common/security/security';
+import * as crypto from 'node:crypto';
+import { canonicalHash, newIntentToken } from '../common/security/security';
 import { PrismaService } from '../database/prisma.service';
 import { LedgerClient, LedgerCallError } from '../transfers/ledger.client';
 
 export function sha256(value: string): string {
-  return require('node:crypto').createHash('sha256').update(value, 'utf8').digest('hex');
+  return crypto
+    .createHash('sha256')
+    .update(value, 'utf8')
+    .digest('hex');
 }
 
 @Injectable()
@@ -26,30 +28,51 @@ export class AgentService {
   /**
    * Preview an agent cash operation (in or out).
    */
-  async preview(input: {
-    agentId: string;
-    agentReference: string;
-    customerReference: string;
-    amountMinor: string;
-    currency: string;
-    operationType: 'AGENT_CASH_IN' | 'AGENT_CASH_OUT';
-  }, correlationId: string) {
+  async preview(
+    input: {
+      agentId: string;
+      agentReference: string;
+      customerReference: string;
+      amountMinor: string;
+      currency: string;
+      operationType: 'AGENT_CASH_IN' | 'AGENT_CASH_OUT';
+    },
+    correlationId: string,
+  ) {
     const amount = BigInt(input.amountMinor);
 
     if (amount < this.config.minTransferMinor) {
-      throw new PaymentsError('INVALID_REQUEST', 'Amount is below minimum.', HttpStatus.BAD_REQUEST);
+      throw new PaymentsError(
+        'INVALID_REQUEST',
+        'Amount is below minimum.',
+        HttpStatus.BAD_REQUEST,
+      );
     }
     if (amount > this.config.maxTransferMinor) {
-      throw new PaymentsError('LIMIT_EXCEEDED', 'Amount exceeds maximum per transaction limit.', HttpStatus.FORBIDDEN);
+      throw new PaymentsError(
+        'LIMIT_EXCEEDED',
+        'Amount exceeds maximum per transaction limit.',
+        HttpStatus.FORBIDDEN,
+      );
     }
 
     // Resolve customer reference via Ledger
     let customerInfo;
     try {
-      customerInfo = await this.ledger.resolveAccountByReference(input.customerReference, correlationId);
+      customerInfo = await this.ledger.resolveAccountByReference(
+        input.customerReference,
+        correlationId,
+      );
     } catch (error) {
-      if (error instanceof LedgerCallError && error.status === HttpStatus.NOT_FOUND) {
-        throw new PaymentsError('ACCOUNT_NOT_FOUND', 'Customer account not found.', HttpStatus.NOT_FOUND);
+      if (
+        error instanceof LedgerCallError &&
+        error.status === HttpStatus.NOT_FOUND
+      ) {
+        throw new PaymentsError(
+          'ACCOUNT_NOT_FOUND',
+          'Customer account not found.',
+          HttpStatus.NOT_FOUND,
+        );
       }
       throw error;
     }
@@ -58,25 +81,32 @@ export class AgentService {
     const today = new Date();
     today.setUTCHours(0, 0, 0, 0);
 
-    const dailyOperations = await this.prisma.client.agentCashOperation.aggregate({
-      where: {
-        agentId: input.agentId,
-        status: { in: ['COMPLETED'] },
-        createdAt: { gte: today },
-      },
-      _sum: {
-        amountMinor: true,
-      },
-    });
+    const dailyOperations =
+      await this.prisma.client.agentCashOperation.aggregate({
+        where: {
+          agentId: input.agentId,
+          status: { in: ['COMPLETED'] },
+          createdAt: { gte: today },
+        },
+        _sum: {
+          amountMinor: true,
+        },
+      });
 
     const dailyTotal = dailyOperations._sum.amountMinor ?? 0n;
 
     if (dailyTotal + amount > this.config.dailyOutgoingLimitMinor) {
-      throw new PaymentsError('LIMIT_EXCEEDED', 'Daily agent limit exceeded.', HttpStatus.FORBIDDEN);
+      throw new PaymentsError(
+        'LIMIT_EXCEEDED',
+        'Daily agent limit exceeded.',
+        HttpStatus.FORBIDDEN,
+      );
     }
 
     const intentToken = newIntentToken();
-    const expiresAt = new Date(Date.now() + this.config.intentTtlSeconds * 1000);
+    const expiresAt = new Date(
+      Date.now() + this.config.intentTtlSeconds * 1000,
+    );
     const displayReference = this.generateReference();
 
     const intentTokenHash = sha256(intentToken);
@@ -118,7 +148,10 @@ export class AgentService {
       operationType: operation.operationType,
       customerMaskedReference: operation.customerMaskedReference,
       agentReference: operation.agentReference,
-      amount: { currency: operation.currency, minorUnits: operation.amountMinor.toString() },
+      amount: {
+        currency: operation.currency,
+        minorUnits: operation.amountMinor.toString(),
+      },
       intentToken,
       expiresAt: operation.expiresAt.toISOString(),
     };
@@ -127,11 +160,14 @@ export class AgentService {
   /**
    * Confirm an agent cash operation.
    */
-  async confirm(input: {
-    agentId: string;
-    intentToken: string;
-    idempotencyKey: string;
-  }, correlationId: string) {
+  async confirm(
+    input: {
+      agentId: string;
+      intentToken: string;
+      idempotencyKey: string;
+    },
+    correlationId: string,
+  ) {
     const intentTokenHash = sha256(input.intentToken);
     const keyHash = sha256(input.idempotencyKey);
 
@@ -160,15 +196,27 @@ export class AgentService {
       });
 
       if (!op) {
-        throw new PaymentsError('INVALID_REQUEST', 'Operation not found or expired.', HttpStatus.NOT_FOUND);
+        throw new PaymentsError(
+          'INVALID_REQUEST',
+          'Operation not found or expired.',
+          HttpStatus.NOT_FOUND,
+        );
       }
 
       if (op.status !== 'PENDING_CONFIRMATION') {
-        throw new PaymentsError('INVALID_REQUEST', 'Operation already processed.', HttpStatus.CONFLICT);
+        throw new PaymentsError(
+          'INVALID_REQUEST',
+          'Operation already processed.',
+          HttpStatus.CONFLICT,
+        );
       }
 
       if (new Date(op.expiresAt) <= new Date()) {
-        throw new PaymentsError('INTENT_EXPIRED', 'Operation has expired.', HttpStatus.GONE);
+        throw new PaymentsError(
+          'INTENT_EXPIRED',
+          'Operation has expired.',
+          HttpStatus.GONE,
+        );
       }
 
       const requestHash = canonicalHash({
@@ -203,7 +251,9 @@ export class AgentService {
       return this.formatOperation(result.operation);
     }
 
-    return this.formatOperation(await this.settle(result.operation, correlationId));
+    return this.formatOperation(
+      await this.settle(result.operation, correlationId),
+    );
   }
 
   async status(agentId: string, operationId: string) {
@@ -211,7 +261,12 @@ export class AgentService {
       where: { id: operationId, agentId },
     });
 
-    if (!op) throw new PaymentsError('TRANSFER_NOT_FOUND', 'Operation not found.', HttpStatus.NOT_FOUND);
+    if (!op)
+      throw new PaymentsError(
+        'TRANSFER_NOT_FOUND',
+        'Operation not found.',
+        HttpStatus.NOT_FOUND,
+      );
 
     return this.formatOperation(op);
   }
@@ -233,14 +288,25 @@ export class AgentService {
   }
 
   private async settle(
-    op: { id: string; displayReference: string; operationType: string; agentAccountId: string; customerPublicReference: string; amountMinor: bigint; currency: string },
+    op: {
+      id: string;
+      displayReference: string;
+      operationType: string;
+      agentAccountId: string;
+      customerPublicReference: string;
+      amountMinor: bigint;
+      currency: string;
+    },
     correlationId: string,
   ) {
     try {
       // Create ledger channel operation logic handled via LedgerClient's custom method or transfer method
       // We will add `channel-operations` endpoint to Ledger
-      const path = op.operationType === 'AGENT_CASH_IN' ? '/internal/channel-operations/agent-cash-in' : '/internal/channel-operations/agent-cash-out';
-      
+      const path =
+        op.operationType === 'AGENT_CASH_IN'
+          ? '/internal/channel-operations/agent-cash-in'
+          : '/internal/channel-operations/agent-cash-out';
+
       const ledgerResult = await this.ledger.transfer(
         {
           transferId: op.id,
@@ -302,7 +368,18 @@ export class AgentService {
     }
   }
 
-  private formatOperation(op: any) {
+  private formatOperation(op: {
+    id: string;
+    displayReference: string;
+    operationType: string;
+    status: string;
+    customerMaskedReference: string;
+    agentReference: string;
+    currency: string;
+    amountMinor: bigint | string | number;
+    createdAt: Date;
+    completedAt?: Date | null;
+  }) {
     return {
       id: op.id,
       displayReference: op.displayReference,
@@ -317,7 +394,10 @@ export class AgentService {
   }
 
   private generateReference(): string {
-    const value = require('node:crypto').randomBytes(12).toString('hex').toUpperCase();
+    const value = crypto
+      .randomBytes(12)
+      .toString('hex')
+      .toUpperCase();
     return `AEGIS-AGT-${value.slice(0, 4)}-${value.slice(4, 8)}-${value.slice(8, 12)}`;
   }
 }

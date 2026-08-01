@@ -3,7 +3,7 @@ import { getServerDictionary } from '@/lib/i18n/server';
 import Link from 'next/link';
 
 export default async function QrPage() {
-  const [state, dictionary] = await Promise.all([
+  const [state] = await Promise.all([
     getServerSession(),
     getServerDictionary(),
   ]);
@@ -26,11 +26,34 @@ export default async function QrPage() {
       <section>
         <div className="feature-card">
           <h2>Scanner</h2>
-          <p>Mock QR Scanner component goes here. (Integrating with /api/v1/channels/qr/preview and /api/v1/channels/qr/confirm)</p>
-          <form method="POST" action="/api/v1/channels/qr/preview" style={{ marginTop: '1rem' }}>
-            <input name="payload" placeholder="QR Payload String" required style={{ display: 'block', marginBottom: '1rem', width: '100%', padding: '0.5rem' }} />
-            <input type="hidden" name="sourceAccountId" value="00000000-0000-0000-0000-000000000000" />
-            <button type="submit" className="button button-primary">Preview Payment</button>
+          <p>
+            Mock QR Scanner component goes here. (Integrating with
+            /api/v1/channels/qr/preview and /api/v1/channels/qr/confirm)
+          </p>
+          <form
+            method="POST"
+            action="/api/v1/channels/qr/preview"
+            style={{ marginTop: '1rem' }}
+          >
+            <input
+              name="payload"
+              placeholder="QR Payload String"
+              required
+              style={{
+                display: 'block',
+                marginBottom: '1rem',
+                width: '100%',
+                padding: '0.5rem',
+              }}
+            />
+            <input
+              type="hidden"
+              name="sourceAccountId"
+              value="00000000-0000-0000-0000-000000000000"
+            />
+            <button type="submit" className="button button-primary">
+              Preview Payment
+            </button>
           </form>
         </div>
       </section>

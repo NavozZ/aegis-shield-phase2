@@ -7,7 +7,7 @@ import {
   insufficientFundsError,
   LedgerError,
 } from '../common/errors/ledger.error';
-import { serializeMinorUnits, signedBalanceMinor } from '../money/money';
+import { signedBalanceMinor } from '../money/money';
 
 @Injectable()
 export class ChannelOperationsService {
@@ -46,11 +46,18 @@ export class ChannelOperationsService {
       where: { systemAccountType: type, currency },
       include: { balanceProjection: true },
     });
-    if (!acc) throw new LedgerError('INTERNAL_ERROR', 'System account not found', 500);
+    if (!acc)
+      throw new LedgerError('INTERNAL_ERROR', 'System account not found', 500);
     return acc;
   }
 
-  private balance(account: { accountClass: any, balanceProjection: any }): bigint {
+  private balance(account: {
+    accountClass: 'ASSET' | 'LIABILITY' | 'EQUITY' | 'REVENUE' | 'EXPENSE';
+    balanceProjection: {
+      debitTotalMinor: bigint;
+      creditTotalMinor: bigint;
+    } | null;
+  }): bigint {
     const projection = account.balanceProjection;
     if (!projection) throw accountNotFoundError();
     return signedBalanceMinor(
@@ -60,18 +67,36 @@ export class ChannelOperationsService {
     );
   }
 
-  async qrPayment(input: any, correlationId: string) {
+  async qrPayment(
+    input: {
+      sourceAccountId: string;
+      recipientAccountId: string;
+      currency: string;
+      amountMinor: string;
+      transferReference: string;
+      transferId: string;
+      idempotencyKey: string;
+    },
+    correlationId: string,
+  ) {
     const [source, recipient] = await Promise.all([
       this.getCustomerAccount(input.sourceAccountId),
       this.getCustomerAccount(input.recipientAccountId),
     ]);
 
-    if (source.id === recipient.id) throw new LedgerError('SELF_TRANSFER', 'Cannot transfer to self', 409);
-    if (source.currency !== recipient.currency || source.currency !== input.currency) throw new LedgerError('CURRENCY_MISMATCH', 'Currency mismatch', 409);
+    if (source.id === recipient.id)
+      throw new LedgerError('SELF_TRANSFER', 'Cannot transfer to self', 409);
+    if (
+      source.currency !== recipient.currency ||
+      source.currency !== input.currency
+    )
+      throw new LedgerError('CURRENCY_MISMATCH', 'Currency mismatch', 409);
 
     const amount = BigInt(input.amountMinor);
-    if (amount <= 0n) throw new LedgerError('INVALID_REQUEST', 'Invalid amount', 400);
-    if (this.balance(source.ledgerAccount) < amount) throw insufficientFundsError();
+    if (amount <= 0n)
+      throw new LedgerError('INVALID_REQUEST', 'Invalid amount', 400);
+    if (this.balance(source.ledgerAccount) < amount)
+      throw insufficientFundsError();
 
     const journal = await this.journals.post(
       {
@@ -81,8 +106,16 @@ export class ChannelOperationsService {
         description: 'QR Payment',
         idempotencyKey: input.idempotencyKey,
         postings: [
-          { ledgerAccountId: source.ledgerAccountId, direction: 'DEBIT', amountMinor: input.amountMinor },
-          { ledgerAccountId: recipient.ledgerAccountId, direction: 'CREDIT', amountMinor: input.amountMinor },
+          {
+            ledgerAccountId: source.ledgerAccountId,
+            direction: 'DEBIT',
+            amountMinor: input.amountMinor,
+          },
+          {
+            ledgerAccountId: recipient.ledgerAccountId,
+            direction: 'CREDIT',
+            amountMinor: input.amountMinor,
+          },
         ],
         metadata: { transferId: input.transferId },
       },
@@ -93,12 +126,24 @@ export class ChannelOperationsService {
     return { journalId: journal.id };
   }
 
-  async agentCashIn(input: any, correlationId: string) {
+  async agentCashIn(
+    input: {
+      customerAccountId: string;
+      currency: string;
+      amountMinor: string;
+      operationReference: string;
+      operationId: string;
+      agentId: string;
+      idempotencyKey: string;
+    },
+    correlationId: string,
+  ) {
     const customer = await this.getCustomerAccount(input.customerAccountId);
     const float = await this.getSystemAccount('AGENT_FLOAT', input.currency);
 
     const amount = BigInt(input.amountMinor);
-    if (amount <= 0n) throw new LedgerError('INVALID_REQUEST', 'Invalid amount', 400);
+    if (amount <= 0n)
+      throw new LedgerError('INVALID_REQUEST', 'Invalid amount', 400);
 
     const journal = await this.journals.post(
       {
@@ -108,8 +153,16 @@ export class ChannelOperationsService {
         description: 'Agent Cash In',
         idempotencyKey: input.idempotencyKey,
         postings: [
-          { ledgerAccountId: float.id, direction: 'DEBIT', amountMinor: input.amountMinor },
-          { ledgerAccountId: customer.ledgerAccountId, direction: 'CREDIT', amountMinor: input.amountMinor },
+          {
+            ledgerAccountId: float.id,
+            direction: 'DEBIT',
+            amountMinor: input.amountMinor,
+          },
+          {
+            ledgerAccountId: customer.ledgerAccountId,
+            direction: 'CREDIT',
+            amountMinor: input.amountMinor,
+          },
         ],
         metadata: { operationId: input.operationId, agentId: input.agentId },
       },
@@ -120,13 +173,26 @@ export class ChannelOperationsService {
     return { journalId: journal.id };
   }
 
-  async agentCashOut(input: any, correlationId: string) {
+  async agentCashOut(
+    input: {
+      customerAccountId: string;
+      currency: string;
+      amountMinor: string;
+      operationReference: string;
+      operationId: string;
+      agentId: string;
+      idempotencyKey: string;
+    },
+    correlationId: string,
+  ) {
     const customer = await this.getCustomerAccount(input.customerAccountId);
     const float = await this.getSystemAccount('AGENT_FLOAT', input.currency);
 
     const amount = BigInt(input.amountMinor);
-    if (amount <= 0n) throw new LedgerError('INVALID_REQUEST', 'Invalid amount', 400);
-    if (this.balance(customer.ledgerAccount) < amount) throw insufficientFundsError();
+    if (amount <= 0n)
+      throw new LedgerError('INVALID_REQUEST', 'Invalid amount', 400);
+    if (this.balance(customer.ledgerAccount) < amount)
+      throw insufficientFundsError();
 
     const journal = await this.journals.post(
       {
@@ -136,8 +202,16 @@ export class ChannelOperationsService {
         description: 'Agent Cash Out',
         idempotencyKey: input.idempotencyKey,
         postings: [
-          { ledgerAccountId: customer.ledgerAccountId, direction: 'DEBIT', amountMinor: input.amountMinor },
-          { ledgerAccountId: float.id, direction: 'CREDIT', amountMinor: input.amountMinor },
+          {
+            ledgerAccountId: customer.ledgerAccountId,
+            direction: 'DEBIT',
+            amountMinor: input.amountMinor,
+          },
+          {
+            ledgerAccountId: float.id,
+            direction: 'CREDIT',
+            amountMinor: input.amountMinor,
+          },
         ],
         metadata: { operationId: input.operationId, agentId: input.agentId },
       },

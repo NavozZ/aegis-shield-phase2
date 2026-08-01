@@ -10,6 +10,9 @@ import {
   PAYMENTS_CONFIG,
   type PaymentsConfig,
 } from '../common/config/payments.config';
+// @ts-expect-error missing types
+import * as pg from 'pg';
+
 @Injectable()
 export class PrismaService implements OnModuleInit, OnModuleDestroy {
   readonly client: PrismaClient;
@@ -20,12 +23,12 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
       throw new Error('Payments database schema is invalid.');
     this.client = new PrismaClient({
       adapter: new PrismaPg(
-        {
+        new pg.Pool({
           connectionString: config.databaseUrl,
           connectionTimeoutMillis: 5000,
           idleTimeoutMillis: 30000,
           max: 10,
-        },
+        }),
         { schema },
       ),
     });

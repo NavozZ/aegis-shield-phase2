@@ -3,7 +3,7 @@ import { getServerDictionary } from '@/lib/i18n/server';
 import Link from 'next/link';
 
 export default async function UssdPage() {
-  const [state, dictionary] = await Promise.all([
+  const [state] = await Promise.all([
     getServerSession(),
     getServerDictionary(),
   ]);
@@ -27,9 +27,25 @@ export default async function UssdPage() {
         <div className="feature-card">
           <h2>Simulator Screen</h2>
           <p>Dial *123# to begin.</p>
-          <form method="POST" action="/api/v1/channels/ussd/simulate" style={{ marginTop: '1rem' }}>
-            <input name="input" placeholder="USSD Input (e.g. *123#)" required style={{ display: 'block', marginBottom: '1rem', width: '100%', padding: '0.5rem' }} />
-            <button type="submit" className="button button-primary">Send</button>
+          <form
+            method="POST"
+            action="/api/v1/channels/ussd/simulate"
+            style={{ marginTop: '1rem' }}
+          >
+            <input
+              name="input"
+              placeholder="USSD Input (e.g. *123#)"
+              required
+              style={{
+                display: 'block',
+                marginBottom: '1rem',
+                width: '100%',
+                padding: '0.5rem',
+              }}
+            />
+            <button type="submit" className="button button-primary">
+              Send
+            </button>
           </form>
         </div>
       </section>

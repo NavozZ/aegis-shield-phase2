@@ -12,14 +12,27 @@ import {
   agentCashPreviewResponseSchema,
   agentCashResultSchema,
 } from '@aegis/contracts';
-import { Body, Controller, Headers, HttpCode, HttpStatus, Param, Post, Req, Res, HttpException } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Headers,
+  HttpCode,
+  HttpStatus,
+  Post,
+  Req,
+  Res,
+  HttpException,
+} from '@nestjs/common';
 import type { Response } from 'express';
 import { z } from 'zod';
 import { SessionCustomerResolver } from '../accounts/session-customer';
 import { IdentityClient, IDENTITY_ENDPOINTS } from '../auth/identity.client';
 import { requireCsrfToken } from '../common/http/csrf';
 import type { RequestContext } from '../common/http/request-context';
-import { PaymentsClient, PAYMENTS_ENDPOINTS } from '../transfers/payments.client';
+import {
+  PaymentsClient,
+  PAYMENTS_ENDPOINTS,
+} from '../transfers/payments.client';
 import { readCookie } from '../auth/cookies';
 import { GATEWAY_CONFIG, type GatewayConfig } from '../config/gateway.config';
 import { Inject } from '@nestjs/common';
@@ -28,7 +41,9 @@ function parse<T>(schema: z.ZodType<T>, value: unknown): T {
   const parsed = schema.safeParse(value);
   if (!parsed.success) {
     throw new HttpException(
-      { error: { code: 'INVALID_REQUEST', message: 'The request is invalid.' } },
+      {
+        error: { code: 'INVALID_REQUEST', message: 'The request is invalid.' },
+      },
       HttpStatus.BAD_REQUEST,
     );
   }
@@ -53,7 +68,11 @@ export class ChannelsController {
   }
 
   private csrf(request: RequestContext, header?: string) {
-    return requireCsrfToken(request.header('cookie'), this.config.csrfCookieName, header);
+    return requireCsrfToken(
+      request.header('cookie'),
+      this.config.csrfCookieName,
+      header,
+    );
   }
 
   // --- QR Payments ---
@@ -68,7 +87,7 @@ export class ChannelsController {
     const customerId = await this.sessions.resolve(request);
     this.csrf(request, csrf);
     const data = parse(qrReceiveRequestSchema, body);
-    
+
     if (response) this.cache(response);
 
     return this.payments.request(
@@ -159,13 +178,30 @@ export class ChannelsController {
     this.csrf(request, csrf);
     const data = parse(transferConfirmationRequestSchema, body);
 
-    const key = z.string().regex(/^[A-Za-z0-9._:-]{16,128}$/u).safeParse(idempotencyKey);
-    if (!key.success) throw new HttpException({ error: { code: 'IDEMPOTENCY_KEY_REQUIRED' } }, HttpStatus.BAD_REQUEST);
+    const key = z
+      .string()
+      .regex(/^[A-Za-z0-9._:-]{16,128}$/u)
+      .safeParse(idempotencyKey);
+    if (!key.success)
+      throw new HttpException(
+        { error: { code: 'IDEMPOTENCY_KEY_REQUIRED' } },
+        HttpStatus.BAD_REQUEST,
+      );
 
     const sessionId = this.sessionId(request);
-    if (!sessionId) throw new HttpException({ error: { code: 'UNAUTHENTICATED' } }, HttpStatus.UNAUTHORIZED);
+    if (!sessionId)
+      throw new HttpException(
+        { error: { code: 'UNAUTHENTICATED' } },
+        HttpStatus.UNAUTHORIZED,
+      );
 
-    await this.identity.request(IDENTITY_ENDPOINTS.transferStepUp, 'POST', request, { pin: data.pin }, { sessionId });
+    await this.identity.request(
+      IDENTITY_ENDPOINTS.transferStepUp,
+      'POST',
+      request,
+      { pin: data.pin },
+      { sessionId },
+    );
 
     const result = await this.payments.request(
       PAYMENTS_ENDPOINTS.qrRedeem,
@@ -183,7 +219,9 @@ export class ChannelsController {
 
     if (response) {
       this.cache(response);
-      response.status(result.status === 'PROCESSING' ? HttpStatus.ACCEPTED : HttpStatus.OK);
+      response.status(
+        result.status === 'PROCESSING' ? HttpStatus.ACCEPTED : HttpStatus.OK,
+      );
     }
     return result;
   }
@@ -265,13 +303,30 @@ export class ChannelsController {
     this.csrf(request, csrf);
     const data = parse(transferConfirmationRequestSchema, body);
 
-    const key = z.string().regex(/^[A-Za-z0-9._:-]{16,128}$/u).safeParse(idempotencyKey);
-    if (!key.success) throw new HttpException({ error: { code: 'IDEMPOTENCY_KEY_REQUIRED' } }, HttpStatus.BAD_REQUEST);
+    const key = z
+      .string()
+      .regex(/^[A-Za-z0-9._:-]{16,128}$/u)
+      .safeParse(idempotencyKey);
+    if (!key.success)
+      throw new HttpException(
+        { error: { code: 'IDEMPOTENCY_KEY_REQUIRED' } },
+        HttpStatus.BAD_REQUEST,
+      );
 
     const sessionId = this.sessionId(request);
-    if (!sessionId) throw new HttpException({ error: { code: 'UNAUTHENTICATED' } }, HttpStatus.UNAUTHORIZED);
+    if (!sessionId)
+      throw new HttpException(
+        { error: { code: 'UNAUTHENTICATED' } },
+        HttpStatus.UNAUTHORIZED,
+      );
 
-    await this.identity.request(IDENTITY_ENDPOINTS.transferStepUp, 'POST', request, { pin: data.pin }, { sessionId });
+    await this.identity.request(
+      IDENTITY_ENDPOINTS.transferStepUp,
+      'POST',
+      request,
+      { pin: data.pin },
+      { sessionId },
+    );
 
     const result = await this.payments.request(
       PAYMENTS_ENDPOINTS.agentCashConfirm,
@@ -289,7 +344,9 @@ export class ChannelsController {
 
     if (response) {
       this.cache(response);
-      response.status(result.status === 'PROCESSING' ? HttpStatus.ACCEPTED : HttpStatus.OK);
+      response.status(
+        result.status === 'PROCESSING' ? HttpStatus.ACCEPTED : HttpStatus.OK,
+      );
     }
     return result;
   }
@@ -306,14 +363,14 @@ export class ChannelsController {
   ) {
     const customerId = await this.sessions.resolve(request);
     this.csrf(request, csrf);
-    
+
     // We pass customerId in the internal request to allow simulator to skip MSISDN auth
     if (response) this.cache(response);
 
     return this.payments.request(
       '/internal/ussd/simulate',
       'POST',
-      z.any(),
+      z.unknown(),
       request,
       {
         body,
@@ -324,15 +381,12 @@ export class ChannelsController {
 
   @Post('ussd/webhook')
   @HttpCode(HttpStatus.OK)
-  async ussdWebhook(
-    @Body() body: unknown,
-    @Req() request: RequestContext,
-  ) {
+  async ussdWebhook(@Body() body: unknown, @Req() request: RequestContext) {
     // Webhook has no session auth, MSISDN auth is done by Payments/Identity
     return this.payments.request(
       '/internal/ussd/webhook',
       'POST',
-      z.any(),
+      z.unknown(),
       request,
       { body },
     );

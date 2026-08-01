@@ -8,6 +8,7 @@ import { TransfersModule } from './transfers/transfers.module';
 import { QrModule } from './qr/qr.module';
 import { AgentModule } from './agent/agent.module';
 import { UssdModule } from './ussd/ussd.module';
+import { RedisModule } from './redis/redis.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { UssdModule } from './ussd/ussd.module';
     QrModule,
     AgentModule,
     UssdModule,
+    RedisModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: InternalTokenGuard }],
 })

@@ -3,7 +3,7 @@ import { getServerDictionary } from '@/lib/i18n/server';
 import Link from 'next/link';
 
 export default async function AgentPage() {
-  const [state, dictionary] = await Promise.all([
+  const [state] = await Promise.all([
     getServerSession(),
     getServerDictionary(),
   ]);
@@ -27,22 +27,76 @@ export default async function AgentPage() {
         <div className="feature-card">
           <h2>Cash In</h2>
           <p>Deposit physical cash to a customer wallet.</p>
-          <form method="POST" action="/api/v1/channels/agent/cash-in/preview" style={{ marginTop: '1rem' }}>
-            <input name="customerReference" placeholder="Customer Public Reference" required style={{ display: 'block', marginBottom: '1rem', width: '100%', padding: '0.5rem' }} />
-            <input name="amountMinor" placeholder="Amount (Minor Units)" type="number" required style={{ display: 'block', marginBottom: '1rem', width: '100%', padding: '0.5rem' }} />
+          <form
+            method="POST"
+            action="/api/v1/channels/agent/cash-in/preview"
+            style={{ marginTop: '1rem' }}
+          >
+            <input
+              name="customerReference"
+              placeholder="Customer Public Reference"
+              required
+              style={{
+                display: 'block',
+                marginBottom: '1rem',
+                width: '100%',
+                padding: '0.5rem',
+              }}
+            />
+            <input
+              name="amountMinor"
+              placeholder="Amount (Minor Units)"
+              type="number"
+              required
+              style={{
+                display: 'block',
+                marginBottom: '1rem',
+                width: '100%',
+                padding: '0.5rem',
+              }}
+            />
             <input type="hidden" name="currency" value="LKR" />
-            <button type="submit" className="button button-primary">Preview Cash In</button>
+            <button type="submit" className="button button-primary">
+              Preview Cash In
+            </button>
           </form>
         </div>
 
         <div className="feature-card">
           <h2>Cash Out</h2>
           <p>Withdraw physical cash from a customer wallet.</p>
-          <form method="POST" action="/api/v1/channels/agent/cash-out/preview" style={{ marginTop: '1rem' }}>
-            <input name="customerReference" placeholder="Customer Public Reference" required style={{ display: 'block', marginBottom: '1rem', width: '100%', padding: '0.5rem' }} />
-            <input name="amountMinor" placeholder="Amount (Minor Units)" type="number" required style={{ display: 'block', marginBottom: '1rem', width: '100%', padding: '0.5rem' }} />
+          <form
+            method="POST"
+            action="/api/v1/channels/agent/cash-out/preview"
+            style={{ marginTop: '1rem' }}
+          >
+            <input
+              name="customerReference"
+              placeholder="Customer Public Reference"
+              required
+              style={{
+                display: 'block',
+                marginBottom: '1rem',
+                width: '100%',
+                padding: '0.5rem',
+              }}
+            />
+            <input
+              name="amountMinor"
+              placeholder="Amount (Minor Units)"
+              type="number"
+              required
+              style={{
+                display: 'block',
+                marginBottom: '1rem',
+                width: '100%',
+                padding: '0.5rem',
+              }}
+            />
             <input type="hidden" name="currency" value="LKR" />
-            <button type="submit" className="button button-primary">Preview Cash Out</button>
+            <button type="submit" className="button button-primary">
+              Preview Cash Out
+            </button>
           </form>
         </div>
       </section>

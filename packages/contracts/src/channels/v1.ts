@@ -229,9 +229,7 @@ export const ussdSimulatorResponseSchema = z
     simulated: z.literal(true),
   })
   .strict();
-export type UssdSimulatorResponse = z.infer<
-  typeof ussdSimulatorResponseSchema
->;
+export type UssdSimulatorResponse = z.infer<typeof ussdSimulatorResponseSchema>;
 
 // ─── Agent Cash Contracts ───────────────────────────────────────────
 
@@ -345,7 +343,10 @@ export type AgentCashPreviewResponse = z.infer<
 export const agentCashConfirmRequestSchema = z
   .object({
     intentToken: z.string().regex(/^[A-Za-z0-9_-]{43,128}$/u),
-    customerPin: z.string().regex(/^\d{6}$/u).optional(),
+    customerPin: z
+      .string()
+      .regex(/^\d{6}$/u)
+      .optional(),
   })
   .strict();
 export type AgentCashConfirmRequest = z.infer<
@@ -395,7 +396,9 @@ export type AgentCashReceipt = z.infer<typeof agentCashReceiptSchema>;
 export const internalQrPaymentCommandSchema = z
   .object({
     paymentId: z.uuid(),
-    paymentReference: z.string().regex(/^AEGIS-QRP-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/u),
+    paymentReference: z
+      .string()
+      .regex(/^AEGIS-QRP-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/u),
     senderCustomerId: z.uuid(),
     sourceAccountId: z.uuid(),
     recipientReference: publicAccountReferenceSchema,

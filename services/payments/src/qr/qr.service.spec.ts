@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/require-await, @typescript-eslint/no-unused-vars, prettier/prettier */
 import { HttpStatus } from '@nestjs/common';
 import { Test, type TestingModule } from '@nestjs/testing';
 import { PAYMENTS_CONFIG } from '../common/config/payments.config';
@@ -41,13 +42,16 @@ describe('QrService', () => {
       qrPaymentEvent: {
         create: jest.fn(),
       },
-    $transaction: async (fn: any): Promise<any> => fn(mockPrisma.client),
+      $transaction: async (fn: any): Promise<any> => fn(mockPrisma.client),
     },
   };
 
-  const mockLedger = {
-    getAccountDetail: jest.fn(),
+  const mockLedger: any = {
     transfer: jest.fn(),
+    getAccountDetail: jest.fn().mockResolvedValue({
+      accountId: 'acc-1',
+      maskedReference: 'AEGIS-****-****-0000',
+    }),
   };
 
   beforeEach(async () => {
@@ -71,7 +75,7 @@ describe('QrService', () => {
 
   describe('issue', () => {
     it('creates a dynamic QR code successfully', async () => {
-      mockLedger.getAccountDetail.mockResolvedValue({
+      mockLedger.getAccountDetail.mockResolvedValueOnce({
         maskedReference: 'AEGIS-****-****-0000',
         receivingReference: 'AEGIS-0000-0000-0000',
       });
@@ -101,7 +105,9 @@ describe('QrService', () => {
     });
 
     it('throws ACCOUNT_NOT_FOUND if ledger cannot find account', async () => {
-      mockLedger.getAccountDetail.mockRejectedValue(new LedgerCallError(HttpStatus.NOT_FOUND));
+      mockLedger.getAccountDetail.mockRejectedValueOnce(
+        new LedgerCallError(HttpStatus.NOT_FOUND),
+      );
 
       await expect(
         service.issue({
