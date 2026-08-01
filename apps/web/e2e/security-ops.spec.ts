@@ -148,14 +148,24 @@ test('operator triages escalating risk, releases control and resolves incident @
   // depend on operator behaviour rather than on how much state preceded it.
   //
   // The final assertion is unchanged and still exact: none may remain.
+  // Re-read the count each pass rather than trusting the first reading. The
+  // console renders a bounded page of controls, so releasing the ones initially
+  // visible can reveal more; a fixed counter stops early and leaves the list
+  // non-empty. The bound is a guard against an unreleasable control, not a
+  // timeout — it fails loudly rather than waiting.
   const release = page.getByRole('button', { name: 'Release' });
-  for (let remaining = await release.count(); remaining > 0; remaining -= 1) {
+  for (let pass = 0; pass < 25; pass += 1) {
+    const remaining = await release.count();
+    if (remaining === 0) break;
     page.once('dialog', (dialog) =>
       dialog.accept('Verified safe recovery after operator review.'),
     );
     await release.first().click();
-    await expect(release).toHaveCount(remaining - 1);
+    // Something must change on every pass, or we would spin on a control the
+    // operator cannot release.
+    await expect(release).not.toHaveCount(remaining);
   }
+  await expect(release).toHaveCount(0);
   await expect(page.getByText('No active controls.')).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
   expect(
