@@ -24,13 +24,19 @@ function isHealthResponse(value: unknown): value is HealthResponse {
 }
 
 describe('Health endpoint (e2e)', () => {
-  let app: INestApplication<App>;
-  const originalNodeEnvironment = process.env.NODE_ENV;
-  const originalInternalToken = process.env.IDENTITY_INTERNAL_TOKEN;
+  let app: INestApplication<App> | undefined;
+  const originalEnvironment = {
+    NODE_ENV: process.env.NODE_ENV,
+    IDENTITY_INTERNAL_TOKEN: process.env.IDENTITY_INTERNAL_TOKEN,
+    LEDGER_INTERNAL_TOKEN: process.env.LEDGER_INTERNAL_TOKEN,
+    PAYMENTS_INTERNAL_TOKEN: process.env.PAYMENTS_INTERNAL_TOKEN,
+  };
 
   beforeAll(async () => {
     process.env.NODE_ENV = 'development';
     process.env.IDENTITY_INTERNAL_TOKEN = 'test-only-health-internal-token';
+    process.env.LEDGER_INTERNAL_TOKEN = 'test-only-health-ledger-token';
+    process.env.PAYMENTS_INTERNAL_TOKEN = 'test-only-health-payments-token';
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
@@ -41,6 +47,7 @@ describe('Health endpoint (e2e)', () => {
   });
 
   it('GET /health responds with HTTP 200 and the public health contract', async () => {
+    if (!app) throw new Error('Gateway test application was not initialized.');
     const response = await request(app.getHttpServer())
       .get('/health')
       .expect(200);
@@ -61,16 +68,10 @@ describe('Health endpoint (e2e)', () => {
   });
 
   afterAll(async () => {
-    await app.close();
-    if (originalNodeEnvironment === undefined) {
-      delete process.env.NODE_ENV;
-    } else {
-      process.env.NODE_ENV = originalNodeEnvironment;
-    }
-    if (originalInternalToken === undefined) {
-      delete process.env.IDENTITY_INTERNAL_TOKEN;
-    } else {
-      process.env.IDENTITY_INTERNAL_TOKEN = originalInternalToken;
+    if (app) await app.close();
+    for (const [name, value] of Object.entries(originalEnvironment)) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
     }
   });
 });
