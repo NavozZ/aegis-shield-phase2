@@ -20,9 +20,16 @@ export class AuthRateLimitMiddleware implements NestMiddleware {
 
   use(request: RequestContext, response: Response, next: NextFunction): void {
     const now = Date.now();
+    // `originalUrl`, not `path`. Express strips the mount prefix from `path`
+    // inside middleware applied with `forRoutes('api/v1/auth/*')`, so `path`
+    // here is the remainder rather than the full route. Classifying that
+    // remainder put ordinary authentication traffic into the restrictive
+    // unclassified bucket. `originalUrl` is the untouched request target; the
+    // query string is dropped because it never affects classification.
+    const target = (request.originalUrl || request.path).split('?', 1)[0] ?? '';
     // The bucket name comes from a fixed allowlist, never from the raw path, so
     // a caller cannot mint fresh budget by varying a path segment.
-    const bucket = classifyRateLimitBucket(request.path);
+    const bucket = classifyRateLimitBucket(target);
     const key = `${request.ip || 'unknown'}:${bucket.name}`;
     const current = this.windows.get(key);
     const window =
@@ -44,19 +51,23 @@ export class AuthRateLimitMiddleware implements NestMiddleware {
       String(Math.max(0, bucket.limit - window.count)),
     );
     if (window.count > bucket.limit) {
-      void this.risk.emit(request, {
-        eventType: 'RATE_LIMIT_VIOLATION',
-        severity: 'MEDIUM',
-        attributes: {
-          route: request.path.slice(0, 256),
-          method: request.method,
-          requestCount: window.count,
-          // The bucket that tripped, so an operator can tell a session-check
-          // flood from credential stuffing. A fixed allowlist value, not user
-          // input.
-          bucket: bucket.name,
-        },
-      });
+      // Telemetry is best effort and must never fail the request it describes.
+      // `emit` validates against the Risk attribute allowlist and throws
+      // synchronously on a mismatch, which would otherwise turn a correct 429
+      // into an unhandled error.
+      try {
+        void this.risk.emit(request, {
+          eventType: 'RATE_LIMIT_VIOLATION',
+          severity: 'MEDIUM',
+          attributes: {
+            route: target.slice(0, 256),
+            method: request.method,
+            requestCount: window.count,
+          },
+        });
+      } catch {
+        // Deliberately swallowed: the rate-limit decision below still stands.
+      }
       response.status(HttpStatus.TOO_MANY_REQUESTS).json({
         error: {
           code: 'RATE_LIMITED',

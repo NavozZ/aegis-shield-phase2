@@ -40,6 +40,86 @@ describe('AuthRateLimitMiddleware', () => {
     expect(next).toHaveBeenCalledTimes(240);
   });
 
+  it('classifies from originalUrl, because Express strips the mount prefix', () => {
+    // The middleware is applied with forRoutes('api/v1/auth/*'), and Express
+    // removes that prefix from `req.path` inside a mounted handler. Reading
+    // `path` therefore saw only the remainder — "/passkeys/authentication/
+    // options" rather than the full route — and dropped ordinary authentication
+    // traffic into the restrictive unclassified bucket, which is what made the
+    // authentication end-to-end suite start returning 429.
+    const risk = { emit: jest.fn() } as unknown as RiskClient;
+    const middleware = new AuthRateLimitMiddleware(risk);
+    const next = nextHarness();
+    const { response, status } = responseHarness();
+
+    // 60 passkey requests is exactly the family's budget, and well above the
+    // unclassified bucket's 20. None may be rejected.
+    for (let count = 0; count < 60; count += 1) {
+      middleware.use(
+        {
+          ip: '127.0.0.1',
+          originalUrl: '/api/v1/auth/passkeys/authentication/options',
+          path: '/passkeys/authentication/options',
+          method: 'POST',
+        } as RequestContext,
+        response,
+        next,
+      );
+    }
+    expect(next).toHaveBeenCalledTimes(60);
+    expect(status).not.toHaveBeenCalledWith(429);
+  });
+
+  it('ignores the query string when classifying', () => {
+    const risk = { emit: jest.fn() } as unknown as RiskClient;
+    const middleware = new AuthRateLimitMiddleware(risk);
+    const next = nextHarness();
+    const { response, status } = responseHarness();
+
+    for (let count = 0; count < 60; count += 1) {
+      middleware.use(
+        {
+          ip: '127.0.0.1',
+          originalUrl: `/api/v1/auth/session?cacheBust=${count}`,
+          path: '/session',
+        } as RequestContext,
+        response,
+        next,
+      );
+    }
+    // A varying query must not mint new buckets, and must not be misclassified.
+    expect(next).toHaveBeenCalledTimes(60);
+    expect(status).not.toHaveBeenCalledWith(429);
+  });
+
+  it('never lets a telemetry failure turn a 429 into an error', () => {
+    // `emit` validates against the Risk attribute allowlist and throws
+    // synchronously on a mismatch. The rate-limit decision must survive that.
+    const risk = {
+      emit: jest.fn(() => {
+        throw new Error('attribute is not allowlisted');
+      }),
+    } as unknown as RiskClient;
+    const middleware = new AuthRateLimitMiddleware(risk);
+    const next = nextHarness();
+    const { response, status, json } = responseHarness();
+    const request = {
+      ip: '127.0.0.1',
+      originalUrl: '/api/v1/auth/fallback/login',
+      path: '/fallback/login',
+      method: 'POST',
+      correlationId: '11111111-1111-4111-8111-111111111111',
+    } as RequestContext;
+
+    expect(() => {
+      for (let count = 0; count < 60; count += 1) {
+        middleware.use(request, response, next);
+      }
+    }).not.toThrow();
+    expect(status).toHaveBeenCalledWith(429);
+    expect(json).toHaveBeenCalled();
+  });
+
   it('does not let session checks starve a later onboarding', () => {
     // The regression that broke the transfer browser journey: a browser
     // navigating protected pages issues a session check per render, which used
