@@ -2,7 +2,7 @@
 
 AEGIS Shield is a zero-trust, resilient, and inclusive digital banking platform with SABCL metadata protection. This monorepo is the official Duothan 6.0 Phase 2 workspace for demonstrating secure banking journeys under normal operation, active threats, and service failure.
 
-> **Current status:** Prompt 09 SABCL privacy and secure routing. The multilingual web UI, API Gateway, independent Identity, Payments and Ledger services, protected authorization, recovery, reconciliation, real browser validation, and the SABCL blind router with encrypted service envelopes are implemented.
+> **Current status:** Prompt 10 deterministic threat detection and automated controls, integrated with Prompt 08 inclusive channels and Prompt 09 SABCL routing. The multilingual customer UI, security-operator console, API Gateway, independent Identity, Payments, Ledger, SABCL router and Risk services, QR/USSD/agent-cash channels, encrypted metadata-minimising service routing, enforceable controls, incident audit, recovery, reconciliation, and real browser validation are implemented.
 
 ## Core problem
 
@@ -54,10 +54,15 @@ What it does not do is documented as carefully as what it does: padding hides ex
 - Independent Payments orchestration with append-only lifecycle events and bounded recovery
 - Immutable `CUSTOMER_TRANSFER` journals with deterministic locks and exact BigInt balances
 - Sent/received history, masked previews, printable receipts, EN/SI/TA, responsive and axe coverage
+- Versioned, authenticated and idempotent security-event ingestion with bounded retention
+- Explainable deterministic risk scoring, versioned reasons and Redis velocity windows
+- Expiring scoped controls enforced independently by Gateway, Payments and Identity
+- Role-protected security-operator console with incident and control lifecycle audit
+- Risk recovery/reconciliation plus real escalation, triage, release and recovery browser coverage
 - Reserved boundaries for future services, shared packages, and infrastructure
 - SABCL/1 encrypted service envelopes, an independent blind router on port 4103, opaque route tokens, capability path allowlists, Redis-backed replay protection, key rotation and revocation, and an operator status page
 
-External payment rails, QR/offline payments, threat detection, service quarantine, production messaging, and disaster recovery are intentionally deferred.
+External payment rails, a trained fraud model, production workforce identity, production messaging, and disaster recovery are intentionally deferred. QR/offline payments arrived in Prompt 08, SABCL in Prompt 09, and threat detection with service quarantine in Prompt 10.
 
 ## Monorepo structure
 
@@ -80,6 +85,7 @@ External payment rails, QR/offline payments, threat detection, service quarantin
 |-- services/identity/        # Private customer identity service
 |-- services/ledger/          # Private accounts and double-entry ledger service
 |-- services/payments/        # Private customer transfer orchestration service
+|-- services/risk/            # Threat detection, incidents and scoped controls
 |-- services/sabcl-router/    # Blind router: forwards envelopes it cannot read
 |-- package.json              # Root scripts and tool versions
 |-- pnpm-lock.yaml            # Single dependency lockfile
@@ -157,6 +163,7 @@ pnpm dev
 - Identity service: `http://127.0.0.1:4101` (internal only)
 - Ledger service: `http://127.0.0.1:4102` (internal only)
 - Payments service: `http://127.0.0.1:4104` (internal only)
+- Risk service: `http://127.0.0.1:4105` (internal only)
 
 Start a single application:
 
@@ -230,11 +237,11 @@ Generated framework and Turborepo output can be removed safely with `pnpm clean`
 
 ## Architecture
 
-The browser calls the Gateway for authentication, accounts, and transfers. Gateway sends PIN step-up only to Identity and trusted customer context only to Payments. Payments owns intent/idempotency/lifecycle state and asks Ledger—the sole balance authority—to post one balanced transfer journal. Identity, Payments, and Ledger own separate databases and never share tables. Raw sessions, PINs, internal tokens, hashes, and internal identifiers never enter public responses or browser storage.
+The browser calls the Gateway for authentication, accounts, transfers and security operations. Gateway sends PIN step-up only to Identity, checks Risk before sensitive confirmation and sends trusted customer context only to Payments. Payments independently evaluates its authoritative intent with Risk before asking Ledger—the sole balance authority—to post one balanced transfer journal. Identity, Payments, Ledger and Risk own isolated databases and never share tables. Raw sessions, PINs, internal tokens and full account references never enter public responses or browser storage.
 
 Money is stored and transported as integer minor units, never as a JavaScript number. Journals are immutable and their balance is enforced by deferred database constraint triggers.
 
-See [Architecture Documentation](docs/architecture/README.md), [Identity README](services/identity/README.md), [Ledger README](services/ledger/README.md), [ADR 0004](docs/decisions/0004-identity-and-session-authentication.md), [ADR 0005](docs/decisions/0005-authentication-user-experience.md), [ADR 0006](docs/decisions/0006-accounts-and-double-entry-ledger.md), the [authentication demo](docs/demo/authentication-demo.md), the [accounts and ledger demo](docs/demo/accounts-ledger-demo.md), the [authentication threat model](docs/security/authentication-threat-model.md), and the [ledger integrity model](docs/security/ledger-integrity-model.md).
+See [Architecture Documentation](docs/architecture/README.md), [Risk architecture](docs/architecture/threat-detection-and-controls.md), [Risk README](services/risk/README.md), [ADR 0010](docs/decisions/0010-threat-detection-and-automated-controls.md), the [risk demo](docs/demo/risk-controls-demo.md), and the [threat-detection threat model](docs/security/threat-detection-threat-model.md).
 
 ## SABCL privacy and secure routing
 
@@ -274,7 +281,8 @@ See the [SABCL router README](services/sabcl-router/README.md),
 - transaction history and statements
 - idempotent transfers, payments, and inclusive access channels
 - ~~SABCL metadata-protection path~~ — implemented in Prompt 09
-- threat detection and service quarantine
+- ~~threat detection and service quarantine~~ — implemented in Prompt 10
+- governed fraud-model evaluation and production workforce identity
 - observability, audit integrity, and recovery
 
 Each milestone will use a short-lived branch and a traceable pull request as described in [CONTRIBUTING.md](CONTRIBUTING.md).

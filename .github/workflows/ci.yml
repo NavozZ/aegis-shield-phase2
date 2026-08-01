@@ -68,10 +68,22 @@ jobs:
       IDENTITY_DATABASE_URL: postgresql://aegis_identity:ci-only-identity-password@127.0.0.1:5432/aegis_identity?schema=app
       LEDGER_DATABASE_URL: postgresql://aegis_ledger:ci-only-ledger-password@127.0.0.1:5432/aegis_ledger?schema=app
       PAYMENTS_DATABASE_URL: postgresql://aegis_payments:ci-only-payments-password@127.0.0.1:5432/aegis_payments?schema=app
+      RISK_DATABASE_URL: postgresql://aegis_audit:ci-only-audit-password@127.0.0.1:5432/aegis_audit?schema=app
       REDIS_URL: redis://:ci-only-redis-password@127.0.0.1:6379/0
       IDENTITY_INTERNAL_TOKEN: ci-only-identity-internal-token
       LEDGER_INTERNAL_TOKEN: ci-only-ledger-internal-token
       PAYMENTS_INTERNAL_TOKEN: ci-only-payments-internal-token
+      RISK_INTERNAL_TOKEN: ci-only-risk-internal-token
+      RISK_GATEWAY_SOURCE_TOKEN: ci-only-risk-gateway-source-token
+      RISK_IDENTITY_SOURCE_TOKEN: ci-only-risk-identity-source-token
+      RISK_PAYMENTS_SOURCE_TOKEN: ci-only-risk-payments-source-token
+      RISK_LEDGER_SOURCE_TOKEN: ci-only-risk-ledger-source-token
+      RISK_INFRASTRUCTURE_SOURCE_TOKEN: ci-only-risk-infrastructure-source-token
+      RISK_CHANNEL_SOURCE_TOKEN: ci-only-risk-channel-source-token
+      RISK_REDIS_PREFIX: 'aegis:risk:test:ci:'
+      RISK_OPERATOR_BOOTSTRAP_TOKEN: ci-only-risk-operator-bootstrap-token
+      RISK_SERVICE_PORT: 4105
+      RISK_SERVICE_URL: http://127.0.0.1:4105
       PAYMENTS_SERVICE_PORT: 4104
       PAYMENTS_SERVICE_URL: http://127.0.0.1:4104
       PAYMENTS_MIN_TRANSFER_MINOR: 100
@@ -121,7 +133,7 @@ jobs:
         run: pnpm infra:up
       - name: Check infrastructure health
         run: pnpm infra:check
-      - name: Generate Identity, Ledger and Payments Prisma Clients
+      - name: Generate Identity, Ledger, Payments and Risk Prisma Clients
         run: pnpm db:generate
       - name: Apply committed Identity migrations
         run: pnpm db:deploy:identity
@@ -129,6 +141,8 @@ jobs:
         run: pnpm db:deploy:ledger
       - name: Apply committed Payments migrations
         run: pnpm db:deploy:payments
+      - name: Apply committed Risk migrations
+        run: pnpm db:deploy:risk
       - name: Test infrastructure tooling
         run: node --test infra/scripts/infra.test.mjs
       - name: Test shared contracts
@@ -157,6 +171,10 @@ jobs:
         run: pnpm channels:test:ussd
       - name: Test agent cash authorization, limits and idempotency
         run: pnpm channels:test:agent
+      - name: Test deterministic Risk rules, controls and retention units
+        run: pnpm risk:test
+      - name: Test Risk PostgreSQL, Redis, ingestion and lifecycle integration
+        run: pnpm risk:test:integration
       - name: Test Ledger PostgreSQL transfer integration and concurrency
         run: pnpm ledger:test:integration
       - name: Test Payments PostgreSQL transfer processing
@@ -188,6 +206,41 @@ jobs:
         run: pnpm infra:up && pnpm infra:check
       - name: Reconcile Ledger and Payments
         run: pnpm --filter @aegis/ledger-service build && pnpm --filter @aegis/payments-service build && pnpm ledger:reconcile && pnpm payments:reconcile
+      # Ledger and Payments reconcile straight against their databases, but the
+      # Risk reconciliation is an authenticated call to the running service —
+      # it recomputes control and incident state behind its own internal-token
+      # boundary rather than reaching into the schema. The browser harness
+      # stopped the application services, so Risk is started again just for this
+      # check and shut down immediately afterwards.
+      - name: Reconcile Risk links and controls
+        run: |
+          pnpm --filter @aegis/risk-service build
+          # Started from its own directory, the way main.ts expects when it
+          # resolves the repository .env relative to the service.
+          ( cd services/risk && exec node dist/main.js ) &
+          risk_pid=$!
+          cleanup() {
+            kill "$risk_pid" 2>/dev/null || true
+            wait "$risk_pid" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+          for attempt in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:4105/health/live >/dev/null 2>&1; then
+              break
+            fi
+            if ! kill -0 "$risk_pid" 2>/dev/null; then
+              echo "Risk exited during startup"
+              exit 1
+            fi
+            if [ "$attempt" -eq 60 ]; then
+              echo "Risk did not become live within 60s"
+              exit 1
+            fi
+            sleep 1
+          done
+          # `set -e` is on, so a failing reconcile would abort before any
+          # cleanup line; the trap above handles shutdown either way.
+          pnpm risk:reconcile
       - name: Upload Playwright report on failure
         if: failure()
         uses: actions/upload-artifact@v7
@@ -217,7 +270,7 @@ jobs:
           cache: pnpm
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      - name: Generate Identity, Ledger and Payments Prisma Clients
+      - name: Generate Identity, Ledger, Payments and Risk Prisma Clients
         run: pnpm db:generate
       - name: Build
         run: pnpm build

@@ -33,12 +33,31 @@ const COMPLETE: Record<string, string> = {
   PAYMENTS_REDIS_PREFIX: 'aegis:payments:test:config:',
 };
 
+/**
+ * A complete set of production-shaped secrets.
+ *
+ * Every value the production placeholder check inspects must be here, across
+ * all three phases: the Payments and Ledger tokens, the Prompt 08 QR signing
+ * key and the Prompt 10 Risk tokens. Omitting one lets it fall back to its
+ * `local-only-…` default, which the check correctly rejects.
+ */
+const PRODUCTION_SECRETS: Record<string, string> = {
+  PAYMENTS_INTERNAL_TOKEN: 'Zr8xQ2vLm4Np7Ks9Td1Wc6Yb3Hg5Jf0A',
+  LEDGER_INTERNAL_TOKEN: 'Qw3eRt5yUi7oPa9sDf1gHj4kLz6xCv8B',
+  PAYMENTS_QR_SIGNING_KEY: 'Mn2bVc4xZa6sDf8gHj0kLp3qWe5rTy7U',
+  RISK_INTERNAL_TOKEN: 'Bd6fGh8jKl0mNp2qRs4tUv6wXy8zAc1E',
+  RISK_PAYMENTS_SOURCE_TOKEN: 'Tk5nHj7bVc9xZq1wEr3tYu5iOp7aSd9F',
+  PAYMENTS_DATABASE_URL:
+    'postgresql://aegis_payments:Pw9nMk3jHb5vGc7x@db.internal:5432/aegis_payments?schema=app',
+};
+
 function withEnvironment(overrides: Record<string, string | undefined>) {
   for (const name of Object.keys(process.env)) {
     if (
       name.startsWith('PAYMENTS_') ||
       name.startsWith('USSD_') ||
       name.startsWith('LEDGER_') ||
+      name.startsWith('RISK_') ||
       name === 'REDIS_URL'
     ) {
       delete process.env[name];
@@ -105,15 +124,27 @@ describe('createPaymentsConfig', () => {
     expect(() => createPaymentsConfig()).toThrow(/placeholders/u);
   });
 
-  it('accepts real-looking secrets in production', () => {
+  it('rejects placeholder Risk tokens in production', () => {
+    // Payments calls Risk on the transfer path, so a placeholder Risk token in
+    // production means enforcement talks to nothing. The check covers it for
+    // the same reason it covers the Ledger token.
     withEnvironment({
       NODE_ENV: 'production',
-      PAYMENTS_INTERNAL_TOKEN: 'Zr8xQ2vLm4Np7Ks9Td1Wc6Yb3Hg5Jf0A',
-      LEDGER_INTERNAL_TOKEN: 'Qw3eRt5yUi7oPa9sDf1gHj4kLz6xCv8B',
-      PAYMENTS_QR_SIGNING_KEY: 'Mn2bVc4xZa6sDf8gHj0kLp3qWe5rTy7U',
-      PAYMENTS_DATABASE_URL:
-        'postgresql://aegis_payments:Pw9nMk3jHb5vGc7x@db.internal:5432/aegis_payments?schema=app',
+      ...PRODUCTION_SECRETS,
+      RISK_INTERNAL_TOKEN: 'local-only-risk-internal-token-change-me',
     });
+    expect(() => createPaymentsConfig()).toThrow(/placeholders/u);
+
+    withEnvironment({
+      NODE_ENV: 'production',
+      ...PRODUCTION_SECRETS,
+      RISK_PAYMENTS_SOURCE_TOKEN: 'local-only-risk-payments-source-change-me',
+    });
+    expect(() => createPaymentsConfig()).toThrow(/placeholders/u);
+  });
+
+  it('accepts real-looking secrets in production', () => {
+    withEnvironment({ NODE_ENV: 'production', ...PRODUCTION_SECRETS });
     expect(() => createPaymentsConfig()).not.toThrow();
   });
 

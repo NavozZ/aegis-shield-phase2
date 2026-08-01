@@ -8,6 +8,8 @@ import { HealthModule } from './health/health.module';
 import { GatewaySabclModule } from './sabcl/sabcl.module';
 import { TransfersModule } from './transfers/transfers.module';
 import { ChannelsModule } from './channels/channels.module';
+import { RiskModule } from './risk/risk.module';
+import { OperatorsModule } from './operators/operators.module';
 
 @Module({
   imports: [
@@ -18,6 +20,8 @@ import { ChannelsModule } from './channels/channels.module';
     AuthModule,
     AccountsModule,
     TransfersModule,
+    RiskModule,
+    OperatorsModule,
     HealthModule,
     ChannelsModule,
   ],
@@ -27,6 +31,11 @@ export class AppModule implements NestModule {
     consumer.apply(CorrelationMiddleware).forRoutes('*');
     consumer
       .apply(AuthRateLimitMiddleware)
-      .forRoutes('api/v1/auth/*', 'api/v1/accounts/*', 'api/v1/transfers/*');
+      .forRoutes(
+        'api/v1/auth/*',
+        'api/v1/accounts/*',
+        'api/v1/transfers/*',
+        'api/v1/security-ops/*',
+      );
   }
 }

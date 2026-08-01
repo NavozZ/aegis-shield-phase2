@@ -58,6 +58,14 @@ const SECRET_NAMES = [
   'IDENTITY_INTERNAL_TOKEN',
   'LEDGER_INTERNAL_TOKEN',
   'PAYMENTS_INTERNAL_TOKEN',
+  'RISK_INTERNAL_TOKEN',
+  'RISK_GATEWAY_SOURCE_TOKEN',
+  'RISK_IDENTITY_SOURCE_TOKEN',
+  'RISK_PAYMENTS_SOURCE_TOKEN',
+  'RISK_LEDGER_SOURCE_TOKEN',
+  'RISK_INFRASTRUCTURE_SOURCE_TOKEN',
+  'RISK_CHANNEL_SOURCE_TOKEN',
+  'RISK_OPERATOR_BOOTSTRAP_TOKEN',
   'FIELD_ENCRYPTION_KEY',
   'SERVICE_AUTH_SHARED_SECRET',
   // SABCL private key material and the route-token secret. Every one of these
@@ -77,6 +85,7 @@ const SECRET_NAMES = [
   'IDENTITY_DATABASE_URL',
   'LEDGER_DATABASE_URL',
   'PAYMENTS_DATABASE_URL',
+  'RISK_DATABASE_URL',
   'REDIS_URL',
   'DATABASE_URL',
 ];
@@ -128,6 +137,12 @@ const services = [
     // Nothing to route when SABCL is not configured, and the router refuses to
     // start in that case, so it is skipped rather than reported as broken.
     skip: () => (environment.SABCL_MODE || 'off').trim() === 'off',
+  },
+  {
+    name: 'Risk',
+    entry: resolve(repositoryRoot, 'services', 'risk', 'dist', 'main.js'),
+    cwd: resolve(repositoryRoot, 'services', 'risk'),
+    readiness: `http://127.0.0.1:${environment.RISK_SERVICE_PORT || 4105}/health/live`,
   },
   {
     name: 'Gateway',
@@ -237,7 +252,7 @@ try {
       ? ''
       : `, SABCL router ${environment.SABCL_ROUTER_PORT || 4103}`;
   process.stdout.write(
-    `[stack] Web 3000, Gateway 4000, Identity 4101, Ledger 4102, Payments 4104${sabclNote} — press Ctrl+C to stop\n`,
+    `[stack] Web 3000, Gateway 4000, Identity 4101, Ledger 4102, Payments 4104${sabclNote}, Risk ${environment.RISK_SERVICE_PORT || 4105} — press Ctrl+C to stop\n`,
   );
 } catch (error) {
   process.stderr.write(

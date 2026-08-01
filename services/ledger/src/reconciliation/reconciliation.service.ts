@@ -4,8 +4,9 @@ import {
   type ReconciliationIssue,
   type ReconciliationResult,
 } from '@aegis/contracts';
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
+import { LedgerRiskEventClient } from './risk-event.client';
 
 interface IssueRow {
   identifier: string | null;
@@ -25,7 +26,10 @@ interface CountRow {
 export class ReconciliationService {
   private readonly logger = new Logger('LedgerReconciliation');
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly risk?: LedgerRiskEventClient,
+  ) {}
 
   async run(correlationId: string): Promise<ReconciliationResult> {
     const startedAt = new Date();
@@ -223,6 +227,11 @@ export class ReconciliationService {
         issueCount: issues.length,
       }),
     );
+    if (status === 'FAIL')
+      await this.risk?.anomaly(
+        correlationId,
+        issues[0]?.code || 'RECONCILIATION_ANOMALY',
+      );
 
     return reconciliationResultSchema.parse({
       id: stored.id,

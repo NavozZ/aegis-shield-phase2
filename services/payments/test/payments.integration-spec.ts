@@ -13,6 +13,7 @@ import {
   type LedgerClient,
 } from '../src/transfers/ledger.client';
 import { TransfersService } from '../src/transfers/transfers.service';
+import type { PaymentsRiskClient } from '../src/transfers/risk.client';
 
 loadEnvironment({
   path: resolve(process.cwd(), '..', '..', '.env.example'),
@@ -22,6 +23,10 @@ loadEnvironment({
 type LedgerMode = 'SUCCESS' | 'TERMINAL_FAILURE' | 'UNCERTAIN';
 
 describe('Payments PostgreSQL integration', () => {
+  const risk = {
+    enforce: jest.fn().mockResolvedValue({ decision: 'ALLOW' }),
+    emit: jest.fn().mockResolvedValue(undefined),
+  } as unknown as PaymentsRiskClient;
   let prisma: PrismaService;
   let baseConfig: PaymentsConfig;
   let service: TransfersService;
@@ -94,7 +99,7 @@ describe('Payments PostgreSQL integration', () => {
     baseConfig = createPaymentsConfig();
     prisma = new PrismaService(baseConfig);
     await prisma.onModuleInit();
-    service = new TransfersService(prisma, ledger, baseConfig);
+    service = new TransfersService(prisma, ledger, baseConfig, risk);
     reconciliation = new PaymentsReconciliationService(prisma);
   });
 
@@ -230,7 +235,7 @@ describe('Payments PostgreSQL integration', () => {
       maxTransferMinor: 1_500n,
       dailyOutgoingLimitMinor: 1_500n,
     };
-    const limited = new TransfersService(prisma, ledger, limitedConfig);
+    const limited = new TransfersService(prisma, ledger, limitedConfig, risk);
     const [firstToken, secondToken] = await Promise.all([
       intentFor(limitedSender, '10.00', limited),
       intentFor(limitedSender, '10.00', limited),

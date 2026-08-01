@@ -8,6 +8,7 @@ node_modules/
 services/identity/src/generated/
 services/ledger/src/generated/
 services/payments/src/generated/
+services/risk/src/generated/
 
 # Next.js and NestJS
 .next/

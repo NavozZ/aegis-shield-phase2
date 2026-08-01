@@ -17,6 +17,10 @@ export interface PaymentsConfig {
   recoveryStaleSeconds: number;
   maxProcessingAttempts: number;
   idempotencyRetentionHours: number;
+  riskServiceUrl: string;
+  riskInternalToken: string;
+  riskPaymentsSourceToken: string;
+  riskTimeoutMs: number;
   qrSigningKey: string;
   qrDynamicTtlSeconds: number;
   qrStaticTtlHours: number;
@@ -77,6 +81,15 @@ export function createPaymentsConfig(): PaymentsConfig {
       'PAYMENTS_IDEMPOTENCY_RETENTION_HOURS',
       24,
     ),
+    riskServiceUrl:
+      process.env.RISK_SERVICE_URL?.trim() || 'http://127.0.0.1:4105',
+    riskInternalToken:
+      process.env.RISK_INTERNAL_TOKEN?.trim() ||
+      'local-only-risk-internal-token-change-me',
+    riskPaymentsSourceToken:
+      process.env.RISK_PAYMENTS_SOURCE_TOKEN?.trim() ||
+      'local-only-risk-payments-source-change-me',
+    riskTimeoutMs: integer('RISK_HTTP_TIMEOUT_MS', 2_000, 100),
     qrSigningKey: required('PAYMENTS_QR_SIGNING_KEY'),
     qrDynamicTtlSeconds: integer('PAYMENTS_QR_DYNAMIC_TTL_SECONDS', 300),
     qrStaticTtlHours: integer('PAYMENTS_QR_STATIC_TTL_HOURS', 8760),
@@ -102,6 +115,8 @@ export function createPaymentsConfig(): PaymentsConfig {
       config.internalToken,
       config.ledgerInternalToken,
       config.databaseUrl,
+      config.riskInternalToken,
+      config.riskPaymentsSourceToken,
       config.qrSigningKey,
     ].some((value) =>
       /change-me|local-only|placeholder|example-only/iu.test(value),

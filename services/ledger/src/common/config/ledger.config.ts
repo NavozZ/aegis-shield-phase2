@@ -11,6 +11,9 @@ export interface LedgerConfig {
   defaultCurrency: string;
   idempotencyRetentionHours: number;
   maxPostingRetries: number;
+  riskServiceUrl: string;
+  riskLedgerSourceToken: string;
+  riskTimeoutMs: number;
 }
 
 export const LEDGER_CONFIG = Symbol('LEDGER_CONFIG');
@@ -50,6 +53,7 @@ function validateProductionSecrets(config: LedgerConfig): void {
   const secretSettings: Array<[string, string]> = [
     ['LEDGER_INTERNAL_TOKEN', config.internalToken],
     ['LEDGER_DATABASE_URL', config.databaseUrl],
+    ['RISK_LEDGER_SOURCE_TOKEN', config.riskLedgerSourceToken],
   ];
   const unsafeValues = secretSettings.filter(([, value]) =>
     /change-me|local-only|placeholder|example-only/iu.test(value),
@@ -76,6 +80,12 @@ export function createLedgerConfig(): LedgerConfig {
       24,
     ),
     maxPostingRetries: integerSetting('LEDGER_MAX_POSTING_RETRIES', 3),
+    riskServiceUrl:
+      process.env.RISK_SERVICE_URL?.trim() || 'http://127.0.0.1:4105',
+    riskLedgerSourceToken:
+      process.env.RISK_LEDGER_SOURCE_TOKEN?.trim() ||
+      'local-only-risk-ledger-source-change-me',
+    riskTimeoutMs: integerSetting('RISK_HTTP_TIMEOUT_MS', 2_000, 100),
   };
 
   if (!/^[A-Z]{3}$/u.test(config.defaultCurrency)) {

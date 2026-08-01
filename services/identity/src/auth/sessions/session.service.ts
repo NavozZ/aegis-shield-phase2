@@ -180,4 +180,15 @@ export class SessionService {
     await this.requireCsrf(sessionId, csrfToken);
     await this.redis.delete(this.sessionKey(sessionId));
   }
+
+  async revokeTrusted(sessionId: string): Promise<string | null> {
+    try {
+      const userId = await this.subject(sessionId);
+      await this.redis.delete(this.sessionKey(sessionId));
+      return userId;
+    } catch (error) {
+      if (error instanceof AuthError && error.status === 401) return null;
+      throw error;
+    }
+  }
 }

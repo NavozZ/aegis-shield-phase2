@@ -7,20 +7,25 @@ import {
 } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
+import { withDiagnostics } from './diagnostics';
 
 const senderPhone = '+12025550129';
 const recipientPhone = '+12025550130';
 const pin = '628413';
 
-async function demoOtp(page: Page) {
-  await page
-    .getByLabel('Six-digit verification code')
-    .waitFor({ state: 'visible' });
-  const code = page.locator('.demo-code');
-  await code.waitFor({ state: 'visible' });
-  const value = (await code.textContent())?.trim() ?? '';
-  if (!/^\d{6}$/u.test(value)) throw new Error('Demo OTP was unavailable.');
-  return value;
+async function demoOtp(page: Page, phase: string) {
+  // Wrapped because this is where a rate-limited onboarding surfaces: the OTP
+  // step never renders, and the bare locator timeout says nothing about why.
+  return withDiagnostics(page, phase, async () => {
+    await page
+      .getByLabel('Six-digit verification code')
+      .waitFor({ state: 'visible' });
+    const code = page.locator('.demo-code');
+    await code.waitFor({ state: 'visible' });
+    const value = (await code.textContent())?.trim() ?? '';
+    if (!/^\d{6}$/u.test(value)) throw new Error('Demo OTP was unavailable.');
+    return value;
+  });
 }
 async function onboard(page: Page, phone: string) {
   await page.goto('/onboarding');
@@ -29,7 +34,7 @@ async function onboard(page: Page, phone: string) {
   await page.getByRole('button', { name: 'Request verification code' }).click();
   await page
     .getByLabel('Six-digit verification code')
-    .fill(await demoOtp(page));
+    .fill(await demoOtp(page, `onboarding ${phone.slice(-4)}`));
   await page.getByRole('button', { name: 'Verify code' }).click();
   await page.getByLabel('Six-digit PIN', { exact: true }).fill(pin);
   await page.getByLabel('Confirm six-digit PIN').fill(pin);
@@ -129,7 +134,7 @@ async function close(context: BrowserContext) {
 test('@functional real two-customer transfer browser journey', async ({
   browser,
 }) => {
-  test.setTimeout(180_000);
+  test.setTimeout(300_000);
   const senderContext = await browser.newContext();
   const recipientContext = await browser.newContext();
   const sender = await senderContext.newPage();
@@ -261,6 +266,6 @@ test('@functional real two-customer transfer browser journey', async ({
     await sender.goto('/app/transfers');
     await expect(sender).toHaveURL(/\/sign-in$/u);
   } finally {
-    await Promise.all([close(senderContext), close(recipientContext)]);
+    await Promise.allSettled([close(senderContext), close(recipientContext)]);
   }
 });

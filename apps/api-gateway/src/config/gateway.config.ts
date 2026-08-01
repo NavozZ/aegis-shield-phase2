@@ -9,11 +9,17 @@ export interface GatewayConfig {
   ledgerInternalToken: string;
   paymentsServiceUrl: string;
   paymentsInternalToken: string;
+  riskServiceUrl: string;
+  riskInternalToken: string;
+  riskGatewaySourceToken: string;
   sessionCookieName: string;
   csrfCookieName: string;
   identityTimeoutMs: number;
   ledgerTimeoutMs: number;
   paymentsTimeoutMs: number;
+  riskTimeoutMs: number;
+  operatorSessionCookieName: string;
+  operatorCsrfCookieName: string;
   /** Blind router base URL. Server-side only; never sent to a browser. */
   sabclRouterUrl: string;
   sabclTimeoutMs: number;
@@ -53,12 +59,23 @@ export function createGatewayConfig(): GatewayConfig {
     paymentsServiceUrl:
       process.env.PAYMENTS_SERVICE_URL?.trim() || 'http://127.0.0.1:4104',
     paymentsInternalToken: requiredSetting('PAYMENTS_INTERNAL_TOKEN'),
+    riskServiceUrl:
+      process.env.RISK_SERVICE_URL?.trim() || 'http://127.0.0.1:4105',
+    riskInternalToken:
+      process.env.RISK_INTERNAL_TOKEN?.trim() ||
+      'local-only-risk-internal-token-change-me',
+    riskGatewaySourceToken:
+      process.env.RISK_GATEWAY_SOURCE_TOKEN?.trim() ||
+      'local-only-risk-gateway-source-change-me',
     sessionCookieName:
       process.env.AUTH_SESSION_COOKIE_NAME?.trim() || 'aegis_session',
     csrfCookieName: process.env.AUTH_CSRF_COOKIE_NAME?.trim() || 'aegis_csrf',
+    operatorSessionCookieName: 'aegis_operator_session',
+    operatorCsrfCookieName: 'aegis_operator_csrf',
     identityTimeoutMs: integerSetting('IDENTITY_HTTP_TIMEOUT_MS', 3_000),
     ledgerTimeoutMs: integerSetting('LEDGER_HTTP_TIMEOUT_MS', 5_000),
     paymentsTimeoutMs: integerSetting('PAYMENTS_HTTP_TIMEOUT_MS', 5_000),
+    riskTimeoutMs: integerSetting('RISK_HTTP_TIMEOUT_MS', 2_000),
     sabclRouterUrl:
       process.env.SABCL_ROUTER_URL?.trim() || 'http://127.0.0.1:4103',
     // The router adds a hop, so its budget is the upstream budget plus headroom
@@ -70,6 +87,7 @@ export function createGatewayConfig(): GatewayConfig {
     ['IDENTITY_SERVICE_URL', configuration.identityServiceUrl],
     ['LEDGER_SERVICE_URL', configuration.ledgerServiceUrl],
     ['PAYMENTS_SERVICE_URL', configuration.paymentsServiceUrl],
+    ['RISK_SERVICE_URL', configuration.riskServiceUrl],
     ['SABCL_ROUTER_URL', configuration.sabclRouterUrl],
   ] as const) {
     if (!['http:', 'https:'].includes(new URL(value).protocol)) {
@@ -82,6 +100,8 @@ export function createGatewayConfig(): GatewayConfig {
         ['IDENTITY_INTERNAL_TOKEN', configuration.identityInternalToken],
         ['LEDGER_INTERNAL_TOKEN', configuration.ledgerInternalToken],
         ['PAYMENTS_INTERNAL_TOKEN', configuration.paymentsInternalToken],
+        ['RISK_INTERNAL_TOKEN', configuration.riskInternalToken],
+        ['RISK_GATEWAY_SOURCE_TOKEN', configuration.riskGatewaySourceToken],
       ] as const
     ).filter(([, value]) => /change-me|local-only|placeholder/iu.test(value));
     if (placeholders.length > 0) {

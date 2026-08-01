@@ -5,6 +5,7 @@ import type { RequestContext } from '../common/http/request-context';
 import type { GatewayConfig } from '../config/gateway.config';
 import type { SessionCustomerResolver } from '../accounts/session-customer';
 import type { PaymentsClient } from './payments.client';
+import type { RiskClient } from '../risk/risk.client';
 import { TransfersController } from './transfers.controller';
 
 const customerId = '11111111-1111-4111-8111-111111111111';
@@ -53,21 +54,58 @@ function response() {
   } as unknown as Response;
 }
 
-function build(options: { resolve?: jest.Mock; paymentResult?: unknown } = {}) {
+function build(
+  options: {
+    resolve?: jest.Mock;
+    paymentResult?: unknown;
+    riskCheck?: unknown;
+    riskAssessment?: unknown;
+  } = {},
+) {
   const paymentRequest = jest
     .fn()
     .mockResolvedValue(options.paymentResult ?? detail);
   const identityRequest = jest.fn().mockResolvedValue(undefined);
   const resolve = options.resolve ?? jest.fn().mockResolvedValue(customerId);
+  const riskCheck = jest.fn().mockResolvedValue(
+    options.riskCheck ?? {
+      allowed: true,
+      decision: 'ALLOW',
+      reasonCodes: [],
+      requiresStepUp: false,
+      expiresAt: null,
+    },
+  );
+  const riskEvaluate = jest.fn().mockResolvedValue(
+    options.riskAssessment ?? {
+      assessmentId: '77777777-7777-4777-8777-777777777777',
+      score: 0,
+      band: 'LOW',
+      decision: 'ALLOW',
+      triggeredRules: [],
+      reasonCodes: [],
+      controlRecommendation: null,
+      expiresAt: '2026-08-01T10:05:00.000Z',
+      ruleSetVersion: 'risk-rules-2026-08-v1',
+      publicExplanation: 'No additional verification is required.',
+    },
+  );
   return {
     controller: new TransfersController(
       { request: paymentRequest } as unknown as PaymentsClient,
       { request: identityRequest } as unknown as IdentityClient,
       { resolve } as unknown as SessionCustomerResolver,
+      {
+        check: riskCheck,
+        evaluate: riskEvaluate,
+        emit: jest.fn().mockResolvedValue(undefined),
+      } as unknown as RiskClient,
       config,
     ),
     paymentRequest,
     identityRequest,
+    riskCheck,
+    riskEvaluate,
   };
 }
 
@@ -217,6 +255,58 @@ describe('TransfersController trust boundary', () => {
     );
     // eslint-disable-next-line @typescript-eslint/unbound-method
     expect(res.status).toHaveBeenCalledWith(202);
+  });
+
+  it('fails closed before step-up and Payments when an active control blocks confirmation', async () => {
+    const { controller, identityRequest, paymentRequest } = build({
+      riskCheck: {
+        allowed: false,
+        decision: 'BLOCK',
+        reasonCodes: ['ACTIVE_BLOCK'],
+        requiresStepUp: false,
+        expiresAt: '2026-08-01T10:05:00.000Z',
+      },
+    });
+    await expect(
+      controller.confirm(
+        { intentToken, pin: '739182' },
+        request(),
+        csrfToken,
+        idempotencyKey,
+        response(),
+      ),
+    ).rejects.toMatchObject({ status: 403 });
+    expect(identityRequest).not.toHaveBeenCalled();
+    expect(paymentRequest).not.toHaveBeenCalled();
+  });
+
+  it('rejects a hold decision after step-up without forwarding a forged decision to Payments', async () => {
+    const { controller, paymentRequest, riskEvaluate } = build({
+      riskAssessment: {
+        assessmentId: '77777777-7777-4777-8777-777777777777',
+        score: 60,
+        band: 'HIGH',
+        decision: 'HOLD_FOR_REVIEW',
+        triggeredRules: ['REPLAY_PATTERN'],
+        reasonCodes: ['REPLAY_LIKE_BEHAVIOUR'],
+        controlRecommendation: 'TRANSFER_HOLD',
+        expiresAt: '2026-08-01T10:05:00.000Z',
+        ruleSetVersion: 'risk-rules-2026-08-v1',
+        publicExplanation:
+          'The operation cannot continue while a security review is active.',
+      },
+    });
+    await expect(
+      controller.confirm(
+        { intentToken, pin: '739182' },
+        request(),
+        csrfToken,
+        idempotencyKey,
+        response(),
+      ),
+    ).rejects.toMatchObject({ status: 403 });
+    expect(riskEvaluate).toHaveBeenCalledTimes(1);
+    expect(paymentRequest).not.toHaveBeenCalled();
   });
 
   it.each([undefined, 'short'])(

@@ -4,6 +4,7 @@ import { canonicalHash, sha256 } from '../common/security/security';
 import type { PrismaService } from '../database/prisma.service';
 import { LedgerCallError, type LedgerClient } from './ledger.client';
 import { TransfersService } from './transfers.service';
+import type { PaymentsRiskClient } from './risk.client';
 
 const senderId = '11111111-1111-4111-8111-111111111111';
 const recipientId = '22222222-2222-4222-8222-222222222222';
@@ -36,6 +37,10 @@ const config: PaymentsConfig = {
   recoveryStaleSeconds: 30,
   maxProcessingAttempts: 3,
   idempotencyRetentionHours: 24,
+  riskServiceUrl: 'http://127.0.0.1:4105',
+  riskInternalToken: 'test-only-risk-token',
+  riskPaymentsSourceToken: 'test-only-payments-source',
+  riskTimeoutMs: 1000,
   qrSigningKey: 'test-key',
   qrDynamicTtlSeconds: 300,
   qrStaticTtlHours: 8760,
@@ -201,6 +206,7 @@ function build(
     },
     transfer: {
       update: jest.fn(applyTransferUpdate),
+      findUnique: jest.fn(() => Promise.resolve(options.existing ?? null)),
       findMany: transferFindMany,
       findFirst: jest.fn<Promise<ReturnType<typeof row> | null>, [unknown?]>(
         () => Promise.resolve(null),
@@ -223,8 +229,12 @@ function build(
   );
   const prisma = { client } as unknown as PrismaService;
   const ledger = { preview, transfer } as unknown as LedgerClient;
+  const riskEnforce = jest.fn().mockResolvedValue({ decision: 'ALLOW' });
   return {
-    service: new TransfersService(prisma, ledger, config),
+    service: new TransfersService(prisma, ledger, config, {
+      enforce: riskEnforce,
+      emit: jest.fn().mockResolvedValue(undefined),
+    } as unknown as PaymentsRiskClient),
     client,
     tx,
     preview,
@@ -232,6 +242,7 @@ function build(
     createdIntents,
     createdTransfers,
     transferUpdates,
+    riskEnforce,
   };
 }
 
@@ -373,12 +384,14 @@ describe('TransfersService', () => {
   });
 
   it('replays the same idempotency key and rejects a changed payload', async () => {
+    const replay = build({
+      existing: row({ status: 'COMPLETED' }),
+      storedIntent: intent({ consumedAt: new Date() }),
+    });
     await expect(
-      build({
-        existing: row({ status: 'COMPLETED' }),
-        storedIntent: intent({ consumedAt: new Date() }),
-      }).service.confirm(confirmation, correlationId),
+      replay.service.confirm(confirmation, correlationId),
     ).resolves.toMatchObject({ status: 'COMPLETED' });
+    expect(replay.riskEnforce).not.toHaveBeenCalled();
     await expect(
       build({ existing: row({ requestHash: 'different' }) }).service.confirm(
         confirmation,
