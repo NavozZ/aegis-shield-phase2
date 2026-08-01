@@ -220,11 +220,23 @@ External/QR payments, USSD, and agent-assisted journeys remain deferred.
 
 ## Administrator journey
 
-To be completed during implementation. No security operations console exists yet.
+Sign in at `http://localhost:3000/security-ops/sign-in` with the development
+operator access token from `.env`. The security operations console shows risk
+events, assessments, scoped controls and incidents.
+
+`http://localhost:3000/security-ops/resilience` is the recovery operations
+console: platform recovery readiness, per-dependency health, the latest encrypted
+backup set, and the recovery drill history. It is read-mostly by design — an
+operator can record that a drill is planned and acknowledge a failed one, but
+backups and restores are command-line tooling and there is no button that runs
+them.
+
+The operator interface is English. Customer journeys remain EN/SI/TA.
 
 ## Security demonstration
 
-To be completed during implementation. Threat detection and quarantine are not part of Prompt 01.
+Implemented in Prompt 10. Full walkthrough:
+[docs/demo/risk-controls-demo.md](docs/demo/risk-controls-demo.md).
 
 ## SABCL demonstration
 
@@ -283,7 +295,37 @@ internal layer between known services, not an anonymity network. See
 
 ## Recovery demonstration
 
-To be completed during implementation. Databases, audit storage, and recovery flows are not part of Prompt 01.
+Implemented in Prompt 11. Full walkthrough:
+[docs/demo/disaster-recovery-demo.md](docs/demo/disaster-recovery-demo.md).
+
+Generate a local backup key and put it in `.env` as `DR_BACKUP_ENCRYPTION_KEY`
+before starting. Never commit a key.
+
+```powershell
+node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"
+```
+
+```powershell
+pnpm dr:backup                  # encrypted set of all five databases
+pnpm dr:backup:verify           # checksums and authenticity, no restore
+pnpm dr:backup:verify:negative  # prove the tamper and wrong-key refusals
+pnpm dr:restore:verify          # isolated restore into disposable databases
+pnpm dr:drill                   # the full deterministic drill
+```
+
+Delete `.dr-backups/` when the demonstration is finished. A backup set contains
+everything the running services protect.
+
+This is a prototype drill against local disposable infrastructure. It provides no
+production multi-region disaster recovery, no continuous replication, no zero
+data loss, no compliance certification and no guaranteed recovery-point or
+recovery-time objective. The console reports a **measured prototype
+recovery-point age** and a **measured prototype recovery duration**, which is
+exactly what they are.
+
+Runbooks: [disaster recovery](docs/operations/disaster-recovery-runbook.md),
+[service failure](docs/operations/service-failure-runbook.md),
+[backup and restore](docs/operations/backup-restore-runbook.md).
 
 ## Troubleshooting
 
