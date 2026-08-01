@@ -13,7 +13,7 @@
  * failure mid-restore does not leave plaintext dumps or half-restored databases
  * behind.
  */
-import { readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { rmSync, writeFileSync } from 'node:fs';
 import {
   BACKUP_SCOPE,
   adminConnection,
@@ -21,6 +21,7 @@ import {
   connectionParts,
   decryptBackupFile,
   join,
+  latestBackupDirectory,
   loadBackupKey,
   log,
   makeTempDirectory,
@@ -33,16 +34,6 @@ import {
 
 const requested = process.argv[2];
 const root = backupRoot();
-
-function latestSet() {
-  const candidates = readdirSync(root, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => entry.name)
-    .sort();
-  const latest = candidates.at(-1);
-  if (!latest) throw new Error('No backup set was found.');
-  return latest;
-}
 
 /** Live database names, so a target can never collide with one. */
 function liveDatabaseNames() {
@@ -107,7 +98,7 @@ async function scalar(database, sql) {
 
 try {
   const key = loadBackupKey();
-  const directory = join(root, requested ?? latestSet());
+  const directory = join(root, requested ?? latestBackupDirectory(root));
 
   // Checksums and authenticity first: a corrupted or wrong-key set is rejected
   // before any database is created.

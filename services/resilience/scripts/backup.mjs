@@ -37,7 +37,8 @@ const root = backupRoot();
 mkdirSync(root, { recursive: true });
 
 const staging = makeTempDirectory('aegis-dr-backup-');
-const final = join(root, backupSetId.replaceAll(':', '_'));
+const directoryName = backupSetId.replaceAll(':', '_');
+const final = join(root, directoryName);
 
 /** Reads the applied migration version, so a restore mismatch is detectable. */
 async function migrationVersion(parts) {
@@ -147,6 +148,9 @@ try {
     `${JSON.stringify({
       status: 'PASS',
       backupSetId,
+      // The directory, so a caller verifies and restores exactly the set it
+      // just created rather than whichever one happens to be "latest".
+      directory: directoryName,
       createdAt: createdAt.toISOString(),
       services: entries.map((entry) => entry.service),
       manifestChecksum,

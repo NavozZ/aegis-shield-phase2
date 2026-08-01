@@ -42,10 +42,10 @@ async function post(path, body) {
 }
 
 /** Runs a workspace script and returns its final JSON line. */
-function runScript(script) {
+function runScript(script, args = []) {
   const result = spawnSync(
     process.execPath,
-    [`services/resilience/scripts/${script}`],
+    [`services/resilience/scripts/${script}`, ...args],
     { cwd: REPOSITORY_ROOT, encoding: 'utf8', env: process.env },
   );
   process.stdout.write(result.stdout ?? '');
@@ -87,6 +87,11 @@ try {
     throw new Error('Backup failed.');
   }
   const backupSetId = backup.payload.backupSetId;
+  // Every later step names this set explicitly. A drill that verified or
+  // restored a different set would record evidence about bytes it never
+  // examined, which is worse than recording no drill at all.
+  const backupDirectory = backup.payload.directory;
+  if (!backupDirectory) throw new Error('Backup did not name its directory.');
   await post('/internal/v1/backup-sets', {
     backupSetId,
     createdAt: backup.payload.createdAt,
@@ -103,17 +108,23 @@ try {
 
   // 2. Verify the set without restoring it.
   failureCode = 'MANIFEST_INVALID';
-  const verified = runScript('backup-verify.mjs');
+  const verified = runScript('backup-verify.mjs', [backupDirectory]);
   if (verified.code !== 0 || verified.payload?.status !== 'PASS') {
     throw new Error('Backup verification failed.');
+  }
+  if (verified.payload.backupSetId !== backupSetId) {
+    throw new Error('Verification examined a different backup set.');
   }
   await post(`/internal/v1/backup-sets/${backupSetId}/verified`, {});
 
   // 3. Restore into disposable databases and prove the schema is there.
   failureCode = 'RESTORE_FAILED';
-  const restored = runScript('restore-verify.mjs');
+  const restored = runScript('restore-verify.mjs', [backupDirectory]);
   if (restored.code !== 0 || restored.payload?.status !== 'PASS') {
     throw new Error('Isolated restore verification failed.');
+  }
+  if (restored.payload.backupSetId !== backupSetId) {
+    throw new Error('Restore verification examined a different backup set.');
   }
   await post(`/internal/v1/drills/${drillId}/advance`, {
     state: 'RESTORE_VERIFIED',

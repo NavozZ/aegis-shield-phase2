@@ -42,6 +42,7 @@ Output is one JSON line:
 {
   "status": "PASS",
   "backupSetId": "backup:2026-08-01:a1b2c3d4",
+  "directory": "backup_2026-08-01_a1b2c3d4",
   "services": ["identity", "ledger", "payments", "risk", "resilience"],
   "manifestChecksum": "…",
   "encryptionAlgorithm": "AES-256-GCM",
@@ -115,7 +116,15 @@ pnpm dr:backup:verify -- backup_2026-08-01_a1b2c3d4
 pnpm dr:restore:verify -- backup_2026-08-01_a1b2c3d4
 ```
 
-Without an argument the most recent set is used.
+Without an argument the most recent set is used, chosen by the manifest's
+`createdAt` rather than by directory name — a set directory ends in a random
+suffix, so sorting names would pick the largest random value rather than the
+newest set.
+
+The drill never relies on that: it passes the directory `pnpm dr:backup` reported
+to both verification steps, and fails if either reports a different backup set
+identifier. Recording evidence about bytes the drill never examined would be
+worse than recording no drill at all.
 
 ## Restoring for real
 

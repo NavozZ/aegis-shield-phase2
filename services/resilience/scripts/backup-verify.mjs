@@ -7,10 +7,10 @@
  * authenticates every file. Nothing is written to disk and no database is
  * touched, so this is safe to run against a production set.
  */
-import { readdirSync } from 'node:fs';
 import {
   backupRoot,
   join,
+  latestBackupDirectory,
   loadBackupKey,
   log,
   verifyBackupSet,
@@ -19,19 +19,9 @@ import {
 const requested = process.argv[2];
 const root = backupRoot();
 
-function latestSet() {
-  const candidates = readdirSync(root, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => entry.name)
-    .sort();
-  const latest = candidates.at(-1);
-  if (!latest) throw new Error('No backup set was found.');
-  return latest;
-}
-
 try {
   const key = loadBackupKey();
-  const directory = join(root, requested ?? latestSet());
+  const directory = join(root, requested ?? latestBackupDirectory(root));
   const { manifest, totalBytes, manifestChecksum } = verifyBackupSet(
     directory,
     key,

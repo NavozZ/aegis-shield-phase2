@@ -270,6 +270,46 @@ export function verifyBackupSet(directory, key) {
   return { manifest, totalBytes, manifestChecksum };
 }
 
+/**
+ * Names the most recently created backup set.
+ *
+ * Selection is by the manifest's `createdAt`, never by directory name. A set
+ * directory ends in a random suffix, so sorting names lexicographically picks
+ * the largest random value rather than the newest set — which would silently
+ * verify and restore a different set than the one just taken.
+ *
+ * A directory without a readable manifest is not a backup set and is skipped
+ * rather than allowed to win the comparison.
+ */
+export function latestBackupDirectory(root = backupRoot()) {
+  let best;
+  for (const entry of readdirSync(root, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    let createdAt;
+    try {
+      createdAt = Date.parse(
+        JSON.parse(
+          readFileSync(join(root, entry.name, 'manifest.json'), 'utf8'),
+        ).createdAt,
+      );
+    } catch {
+      continue;
+    }
+    if (!Number.isFinite(createdAt)) continue;
+    // The name breaks a tie, so the result is deterministic when two sets share
+    // a timestamp.
+    if (
+      !best ||
+      createdAt > best.createdAt ||
+      (createdAt === best.createdAt && entry.name > best.name)
+    ) {
+      best = { name: entry.name, createdAt };
+    }
+  }
+  if (!best) throw new Error('No backup set was found.');
+  return best.name;
+}
+
 /** Creates a temporary working directory that the caller must remove. */
 export function makeTempDirectory(prefix) {
   return mkdtempSync(join(tmpdir(), prefix));

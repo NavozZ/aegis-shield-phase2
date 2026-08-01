@@ -15,7 +15,6 @@
  */
 import {
   cpSync,
-  readdirSync,
   readFileSync,
   rmSync,
   symlinkSync,
@@ -24,6 +23,7 @@ import {
 import { join } from 'node:path';
 import {
   backupRoot,
+  latestBackupDirectory,
   loadBackupKey,
   log,
   makeTempDirectory,
@@ -32,14 +32,7 @@ import {
 
 const root = backupRoot();
 const requested = process.argv[2];
-const name =
-  requested ??
-  readdirSync(root, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => entry.name)
-    .sort()
-    .at(-1);
-if (!name) throw new Error('No backup set was found to verify against.');
+const name = requested ?? latestBackupDirectory(root);
 const source = join(root, name);
 
 const key = loadBackupKey();

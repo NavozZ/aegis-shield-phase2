@@ -28,6 +28,7 @@ import {
   assertSafeFileName,
   backupRoot,
   connectionParts,
+  latestBackupDirectory,
   encryptBackupFile,
   readBackupSet,
   redact,
@@ -54,7 +55,7 @@ const SERVICES = ['identity', 'ledger', 'payments', 'risk', 'resilience'];
 
 /** Writes a complete, valid backup set and returns its directory. */
 function writeSet(options = {}) {
-  const directory = workspace();
+  const directory = options.directory ?? workspace();
   const entries = [];
   for (const service of options.services ?? SERVICES) {
     const ciphertext = encryptBackupFile(
@@ -248,6 +249,42 @@ test('redaction removes credentials from anything that could be logged', () => {
   assert.ok(!text.includes('secret-value'));
   assert.ok(!text.includes('hunter2'));
   assert.match(text, /\[redacted\]/u);
+});
+
+test('the newest set is chosen by creation time, not by directory name', () => {
+  // Set directories end in a random suffix, so a lexicographic sort picks the
+  // largest random value rather than the newest set. A drill that verified the
+  // wrong set would record evidence about bytes it never examined.
+  const root = workspace();
+  mkdirSync(join(root, 'backup_2026-08-01_ffffffff'));
+  writeSet({
+    directory: join(root, 'backup_2026-08-01_ffffffff'),
+    manifest: { createdAt: '2026-08-01T09:00:00.000Z' },
+  });
+  mkdirSync(join(root, 'backup_2026-08-01_00000001'));
+  writeSet({
+    directory: join(root, 'backup_2026-08-01_00000001'),
+    manifest: { createdAt: '2026-08-01T11:00:00.000Z' },
+  });
+
+  assert.equal(latestBackupDirectory(root), 'backup_2026-08-01_00000001');
+});
+
+test('a directory without a readable manifest is not treated as a set', () => {
+  const root = workspace();
+  mkdirSync(join(root, 'backup_2026-08-01_aaaaaaaa'));
+  writeSet({
+    directory: join(root, 'backup_2026-08-01_aaaaaaaa'),
+    manifest: { createdAt: '2026-08-01T09:00:00.000Z' },
+  });
+  // A stray directory must not win the comparison merely by sorting last.
+  mkdirSync(join(root, 'zzzz-not-a-backup-set'));
+
+  assert.equal(latestBackupDirectory(root), 'backup_2026-08-01_aaaaaaaa');
+});
+
+test('an empty backup root is reported rather than returning undefined', () => {
+  assert.throws(() => latestBackupDirectory(workspace()), /No backup set/u);
 });
 
 test('the backup directory follows DR_BACKUP_DIR when it is set', () => {
