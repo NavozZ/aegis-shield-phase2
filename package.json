@@ -45,8 +45,11 @@
     "ledger:test": "pnpm --filter @aegis/ledger-service test",
     "ledger:test:integration": "pnpm --filter @aegis/ledger-service test:integration",
     "ledger:test:e2e": "pnpm --filter @aegis/api-gateway test:e2e:accounts",
+    "transactions:test:integration": "pnpm --filter @aegis/ledger-service test:integration",
+    "transactions:test:e2e": "pnpm --filter @aegis/api-gateway test:e2e:accounts",
     "ledger:reconcile": "pnpm --filter @aegis/ledger-service reconcile",
     "web:test": "pnpm --filter @aegis/web test",
+    "web:test:transactions": "pnpm --filter @aegis/web exec vitest run src/components/accounts/transaction-history.test.tsx src/components/accounts/recent-activity.test.tsx src/components/accounts/print-record-button.test.tsx src/components/accounts/print-layout.test.ts",
     "web:test:e2e": "pnpm --filter @aegis/web test:e2e",
     "web:test:a11y": "pnpm --filter @aegis/web test:a11y",
     "web:e2e:install": "pnpm --filter @aegis/web e2e:install"

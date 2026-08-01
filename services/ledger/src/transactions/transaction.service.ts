@@ -6,7 +6,10 @@ import {
 } from '@aegis/contracts';
 import { createHash } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
-import { accountNotFoundError } from '../common/errors/ledger.error';
+import {
+  accountNotFoundError,
+  LedgerError,
+} from '../common/errors/ledger.error';
 import { PrismaService } from '../database/prisma.service';
 import { serializeMinorUnits } from '../money/money';
 
@@ -70,7 +73,10 @@ function decodeCursor(
       throw new Error('Invalid cursor');
     return parsed;
   } catch {
-    throw new Error('Invalid transaction history cursor.');
+    throw new LedgerError(
+      'INVALID_REQUEST',
+      'Invalid transaction history cursor.',
+    );
   }
 }
 
@@ -186,7 +192,10 @@ export class TransactionService {
         ) + 1
       : 0;
     if (cursor && start === 0)
-      throw new Error('Invalid transaction history cursor.');
+      throw new LedgerError(
+        'INVALID_REQUEST',
+        'Invalid transaction history cursor.',
+      );
     const page = filtered.slice(start, start + query.pageSize);
     const tail = page.at(-1);
     return {

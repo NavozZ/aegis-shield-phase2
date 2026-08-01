@@ -3,6 +3,8 @@ import type {
   CustomerAccountList,
   OtpAcceptedResponse,
   SessionResponse,
+  TransactionHistoryResponse,
+  CustomerTransactionDetail,
 } from '@aegis/contracts';
 import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
@@ -105,6 +107,76 @@ describe('Accounts through the API Gateway (e2e)', () => {
 
   function server() {
     return gatewayApp.getHttpServer();
+  }
+
+  async function postSyntheticJournal(
+    accountId: string,
+    direction: 'INCOMING' | 'OUTGOING',
+    amountMinor: string,
+    suffix: string,
+  ): Promise<void> {
+    const pool = new Pool({
+      connectionString: process.env.LEDGER_DATABASE_URL,
+    });
+    const { rows } = await pool.query<{
+      wallet_id: string;
+      settlement_id: string;
+    }>(
+      `SELECT customer.ledger_account_id AS wallet_id, system.id AS settlement_id
+       FROM app.customer_accounts AS customer
+       CROSS JOIN app.ledger_accounts AS system
+       WHERE customer.id = $1::uuid
+         AND system.system_account_type = 'PLATFORM_SETTLEMENT_ASSET'`,
+      [accountId],
+    );
+    await pool.end();
+    const row = rows[0];
+    if (!row) throw new Error('Synthetic test ledger accounts were not found.');
+    const incoming = direction === 'INCOMING';
+    const response = await fetch(
+      `${process.env.LEDGER_SERVICE_URL}/internal/journal-entries`,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-aegis-internal-token': process.env.LEDGER_INTERNAL_TOKEN!,
+          'x-correlation-id': randomUUID(),
+        },
+        body: JSON.stringify({
+          entryType: incoming ? 'SETTLEMENT_FUNDING' : 'ACCOUNT_ADJUSTMENT',
+          currency: 'LKR',
+          idempotencyKey: `transactions-e2e-${suffix}-${randomUUID()}`,
+          reference: `JRN-TXN-E2E-${suffix}-${randomUUID()}`.slice(0, 64),
+          postings: incoming
+            ? [
+                {
+                  ledgerAccountId: row.settlement_id,
+                  direction: 'DEBIT',
+                  amountMinor,
+                },
+                {
+                  ledgerAccountId: row.wallet_id,
+                  direction: 'CREDIT',
+                  amountMinor,
+                },
+              ]
+            : [
+                {
+                  ledgerAccountId: row.wallet_id,
+                  direction: 'DEBIT',
+                  amountMinor,
+                },
+                {
+                  ledgerAccountId: row.settlement_id,
+                  direction: 'CREDIT',
+                  amountMinor,
+                },
+              ],
+        }),
+      },
+    );
+    if (!response.ok)
+      throw new Error(`Synthetic journal setup failed (${response.status}).`);
   }
 
   /** Onboards a synthetic customer and returns its browser credentials. */
@@ -325,6 +397,89 @@ describe('Accounts through the API Gateway (e2e)', () => {
     expect(balance.balance.minorUnits).toBe('0');
     expect(typeof balance.balance.minorUnits).toBe('string');
 
+    await request(server())
+      .get(`/api/v1/accounts/${created.id}/transactions`)
+      .set('cookie', owner.cookies)
+      .expect(200, { transactions: [], nextCursor: null });
+    await request(server())
+      .get(`/api/v1/accounts/${created.id}/transactions/${randomUUID()}`)
+      .set('cookie', owner.cookies)
+      .expect(404);
+
+    await postSyntheticJournal(created.id, 'INCOMING', '1000', 'incoming');
+    await postSyntheticJournal(created.id, 'OUTGOING', '250', 'outgoing');
+    for (let index = 0; index < 3; index += 1)
+      await postSyntheticJournal(created.id, 'INCOMING', '1', `page-${index}`);
+
+    const history = bodyAs<TransactionHistoryResponse>(
+      await request(server())
+        .get(`/api/v1/accounts/${created.id}/transactions?pageSize=2`)
+        .set('cookie', owner.cookies)
+        .expect('cache-control', /private, no-store/u)
+        .expect(200),
+    );
+    expect(history.transactions).toHaveLength(2);
+    expect(history.nextCursor).toBeTruthy();
+    const next = bodyAs<TransactionHistoryResponse>(
+      await request(server())
+        .get(
+          `/api/v1/accounts/${created.id}/transactions?pageSize=2&cursor=${encodeURIComponent(history.nextCursor!)}`,
+        )
+        .set('cookie', owner.cookies)
+        .expect(200),
+    );
+    expect(
+      new Set(
+        [...history.transactions, ...next.transactions].map((item) => item.id),
+      ).size,
+    ).toBe(4);
+    const outgoing = bodyAs<TransactionHistoryResponse>(
+      await request(server())
+        .get(
+          `/api/v1/accounts/${created.id}/transactions?direction=OUTGOING&category=ADJUSTMENT`,
+        )
+        .set('cookie', owner.cookies)
+        .expect(200),
+    );
+    expect(outgoing.transactions).toHaveLength(1);
+    const outgoingTransaction = outgoing.transactions[0];
+    if (!outgoingTransaction)
+      throw new Error('Expected an outgoing transaction.');
+    expect(outgoingTransaction).toMatchObject({
+      direction: 'OUTGOING',
+      category: 'ADJUSTMENT',
+      balanceAfter: { minorUnits: '750' },
+    });
+    const transactionDetail = bodyAs<CustomerTransactionDetail>(
+      await request(server())
+        .get(
+          `/api/v1/accounts/${created.id}/transactions/${outgoingTransaction.id}`,
+        )
+        .set('cookie', owner.cookies)
+        .expect('cache-control', /private, no-store/u)
+        .expect(200),
+    );
+    expect(transactionDetail.maskedAccountReference).toBe(
+      created.maskedReference,
+    );
+    for (const forbidden of [
+      'ledgerAccountId',
+      'customerId',
+      'metadata',
+      'createdBy',
+      'correlationId',
+    ])
+      expect(transactionDetail).not.toHaveProperty(forbidden);
+    await request(server())
+      .get(`/api/v1/accounts/${created.id}/transactions?cursor=malformed`)
+      .set('cookie', owner.cookies)
+      .expect(400);
+    await request(server())
+      .post(`/api/v1/accounts/${created.id}/transactions`)
+      .set('cookie', owner.cookies)
+      .send({})
+      .expect(404);
+
     // Ownership: a second customer sees only their own account and cannot read
     // the first customer's account even with a valid identifier.
     const other = await onboard(otherPhone);
@@ -338,6 +493,16 @@ describe('Accounts through the API Gateway (e2e)', () => {
       .expect(404);
     await request(server())
       .get(`/api/v1/accounts/${created.id}/balance`)
+      .set('cookie', other.cookies)
+      .expect(404);
+    await request(server())
+      .get(`/api/v1/accounts/${created.id}/transactions`)
+      .set('cookie', other.cookies)
+      .expect(404);
+    await request(server())
+      .get(
+        `/api/v1/accounts/${created.id}/transactions/${outgoingTransaction.id}`,
+      )
       .set('cookie', other.cookies)
       .expect(404);
     await request(server())
