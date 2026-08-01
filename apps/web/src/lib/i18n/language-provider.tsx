@@ -1,6 +1,13 @@
 'use client';
 
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 import { dictionaries, type Dictionary, type Language } from './dictionaries';
 
 const htmlLanguages: Record<Language, string> = {
@@ -28,16 +35,17 @@ export function LanguageProvider({
   useEffect(() => {
     document.documentElement.lang = htmlLanguages[language];
   }, [language]);
+  const setLanguage = useCallback((nextLanguage: Language) => {
+    updateLanguage(nextLanguage);
+    document.cookie = `aegis_language=${nextLanguage}; Path=/; Max-Age=31536000; SameSite=Lax`;
+  }, []);
   const value = useMemo<LanguageContextValue>(
     () => ({
       language,
       dictionary: dictionaries[language],
-      setLanguage(nextLanguage) {
-        updateLanguage(nextLanguage);
-        document.cookie = `aegis_language=${nextLanguage}; Path=/; Max-Age=31536000; SameSite=Lax`;
-      },
+      setLanguage,
     }),
-    [language],
+    [language, setLanguage],
   );
   return (
     <LanguageContext.Provider value={value}>
