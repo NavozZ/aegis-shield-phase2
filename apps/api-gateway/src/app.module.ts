@@ -7,6 +7,7 @@ import { GatewayConfigModule } from './config/gateway-config.module';
 import { HealthModule } from './health/health.module';
 import { GatewaySabclModule } from './sabcl/sabcl.module';
 import { TransfersModule } from './transfers/transfers.module';
+import { ChannelsModule } from './channels/channels.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { TransfersModule } from './transfers/transfers.module';
     AccountsModule,
     TransfersModule,
     HealthModule,
+    ChannelsModule,
   ],
 })
 export class AppModule implements NestModule {

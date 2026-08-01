@@ -22,9 +22,11 @@ try {
   process.stdout.write(`${JSON.stringify(result)}\n`);
   await prisma.onModuleDestroy();
   process.exitCode = result.status === 'PASS' ? 0 : 1;
-} catch {
+} catch (e) {
   process.stderr.write(
-    'Payments reconciliation could not complete. Build the service and verify PostgreSQL.\n',
+    'Payments reconciliation could not complete. Build the service and verify PostgreSQL.\n' +
+      e.stack +
+      '\n',
   );
   process.exitCode = 1;
 }
