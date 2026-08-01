@@ -84,12 +84,14 @@ describe('health routing', () => {
   });
 
   it.each(['/health', '/health/live'])('registers %s', async (path) => {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
     await request(app.getHttpServer())
       .get(path)
       .expect(200, { status: 'ok', service: 'ledger' });
   });
 
   it('registers the readiness route', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
     await request(app.getHttpServer()).get('/health/ready').expect(200);
   });
 });

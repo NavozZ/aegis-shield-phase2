@@ -10,6 +10,7 @@ import { JournalModule } from './ledger/journal.module';
 import { ReconciliationModule } from './reconciliation/reconciliation.module';
 import { TransactionModule } from './transactions/transaction.module';
 import { CustomerTransferModule } from './transfers/customer-transfer.module';
+import { ChannelsModule } from './channels/channels.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { CustomerTransferModule } from './transfers/customer-transfer.module';
     ReconciliationModule,
     TransactionModule,
     CustomerTransferModule,
+    ChannelsModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: InternalTokenGuard }],
 })

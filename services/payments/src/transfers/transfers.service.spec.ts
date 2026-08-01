@@ -36,6 +36,11 @@ const config: PaymentsConfig = {
   recoveryStaleSeconds: 30,
   maxProcessingAttempts: 3,
   idempotencyRetentionHours: 24,
+  qrSigningKey: 'test-key',
+  qrDynamicTtlSeconds: 300,
+  qrStaticTtlHours: 8760,
+  redisUrl: 'redis://localhost:6379',
+  redisKeyPrefix: 'aegis:',
 };
 
 function intent(overrides: Record<string, unknown> = {}) {

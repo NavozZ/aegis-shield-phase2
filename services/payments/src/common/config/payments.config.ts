@@ -17,6 +17,11 @@ export interface PaymentsConfig {
   recoveryStaleSeconds: number;
   maxProcessingAttempts: number;
   idempotencyRetentionHours: number;
+  qrSigningKey: string;
+  qrDynamicTtlSeconds: number;
+  qrStaticTtlHours: number;
+  redisUrl: string;
+  redisKeyPrefix: string;
 }
 export const PAYMENTS_CONFIG = Symbol('PAYMENTS_CONFIG');
 
@@ -72,6 +77,14 @@ export function createPaymentsConfig(): PaymentsConfig {
       'PAYMENTS_IDEMPOTENCY_RETENTION_HOURS',
       24,
     ),
+    qrSigningKey: required('PAYMENTS_QR_SIGNING_KEY'),
+    qrDynamicTtlSeconds: integer('PAYMENTS_QR_DYNAMIC_TTL_SECONDS', 300),
+    qrStaticTtlHours: integer('PAYMENTS_QR_STATIC_TTL_HOURS', 8760),
+    redisUrl:
+      process.env.REDIS_URL?.trim() ||
+      'redis://:aegis-local-redis-change-me@127.0.0.1:6379/0',
+    redisKeyPrefix:
+      process.env.PAYMENTS_REDIS_PREFIX?.trim() || 'aegis:payments:',
   };
   if (
     config.minTransferMinor > config.maxTransferMinor ||
@@ -85,8 +98,13 @@ export function createPaymentsConfig(): PaymentsConfig {
     throw new Error('LEDGER_SERVICE_URL must be HTTP or HTTPS.');
   if (
     config.nodeEnvironment === 'production' &&
-    [config.internalToken, config.ledgerInternalToken, config.databaseUrl].some(
-      (value) => /change-me|local-only|placeholder|example-only/iu.test(value),
+    [
+      config.internalToken,
+      config.ledgerInternalToken,
+      config.databaseUrl,
+      config.qrSigningKey,
+    ].some((value) =>
+      /change-me|local-only|placeholder|example-only/iu.test(value),
     )
   )
     throw new Error('Production Payments configuration contains placeholders.');

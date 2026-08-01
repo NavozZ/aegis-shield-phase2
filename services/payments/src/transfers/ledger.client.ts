@@ -81,6 +81,73 @@ export class LedgerClient {
       await this.call('/internal/customer-transfers', input, correlationId),
     );
   }
+  async getAccountDetail(
+    accountId: string,
+    customerId: string,
+    correlationId: string,
+  ) {
+    const controller = new AbortController();
+    const timeout = setTimeout(
+      () => controller.abort(),
+      this.config.httpTimeoutMs,
+    );
+    try {
+      const response = await fetch(
+        new URL(
+          `/internal/customer-accounts/${accountId}`,
+          this.config.ledgerServiceUrl,
+        ),
+        {
+          headers: {
+            'x-aegis-internal-token': this.config.ledgerInternalToken,
+            'x-aegis-customer-id': customerId,
+            'x-correlation-id': correlationId,
+          },
+          signal: controller.signal,
+        },
+      );
+      if (!response.ok) throw new LedgerCallError(response.status);
+      return (await response.json()) as {
+        maskedReference: string;
+        receivingReference: string;
+      };
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+  async resolveAccountByReference(
+    publicReference: string,
+    correlationId: string,
+  ) {
+    const controller = new AbortController();
+    const timeout = setTimeout(
+      () => controller.abort(),
+      this.config.httpTimeoutMs,
+    );
+    try {
+      const response = await fetch(
+        new URL(
+          `/internal/channel-operations/resolve-account?reference=${publicReference}`,
+          this.config.ledgerServiceUrl,
+        ),
+        {
+          headers: {
+            'x-aegis-internal-token': this.config.ledgerInternalToken,
+            'x-correlation-id': correlationId,
+          },
+          signal: controller.signal,
+        },
+      );
+      if (!response.ok) throw new LedgerCallError(response.status);
+      return (await response.json()) as {
+        customerId: string;
+        accountId: string;
+        maskedReference: string;
+      };
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
   async ready() {
     try {
       const response = await fetch(

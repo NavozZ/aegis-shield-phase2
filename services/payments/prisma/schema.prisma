@@ -131,3 +131,180 @@ model ReconciliationRun {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   @@map("reconciliation_runs")
 }
+
+// ─── QR Payment Models ──────────────────────────────────────────────
+
+enum QrType {
+  STATIC
+  DYNAMIC
+}
+
+enum QrPaymentRequestStatus {
+  ACTIVE
+  REDEEMED
+  EXPIRED
+  CANCELLED
+}
+
+enum QrPaymentStatus {
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum QrPaymentEventType {
+  QR_ISSUED
+  QR_SCANNED
+  PAYMENT_PROCESSING
+  LEDGER_POSTED
+  COMPLETED
+  FAILED
+  EXPIRED
+}
+
+model QrPaymentRequest {
+  id String @id @default(uuid()) @db.Uuid
+  type QrType
+  status QrPaymentRequestStatus @default(ACTIVE)
+  recipientCustomerId String @map("recipient_customer_id") @db.Uuid
+  recipientAccountId String @map("recipient_account_id") @db.Uuid
+  recipientMaskedReference String @map("recipient_masked_reference") @db.VarChar(24)
+  recipientPublicReference String @map("recipient_public_reference") @db.VarChar(24)
+  currency String @db.Char(3)
+  amountMinor BigInt? @map("amount_minor")
+  purpose String? @db.VarChar(64)
+  nonceHash String @unique @map("nonce_hash") @db.Char(64)
+  signatureHash String @map("signature_hash") @db.Char(64)
+  protocolVersion Int @default(1) @map("protocol_version")
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(3)
+  redeemedAt DateTime? @map("redeemed_at") @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  redemption QrRedemption?
+  events QrPaymentEvent[]
+  @@index([recipientCustomerId, createdAt])
+  @@index([expiresAt, status])
+  @@map("qr_payment_requests")
+}
+
+model QrRedemption {
+  id String @id @default(uuid()) @db.Uuid
+  qrPaymentRequestId String @unique @map("qr_payment_request_id") @db.Uuid
+  displayReference String @unique @map("display_reference") @db.VarChar(32)
+  senderCustomerId String @map("sender_customer_id") @db.Uuid
+  senderAccountId String @map("sender_account_id") @db.Uuid
+  senderMaskedReference String @map("sender_masked_reference") @db.VarChar(24)
+  recipientCustomerId String @map("recipient_customer_id") @db.Uuid
+  recipientAccountId String @map("recipient_account_id") @db.Uuid
+  recipientMaskedReference String @map("recipient_masked_reference") @db.VarChar(24)
+  currency String @db.Char(3)
+  amountMinor BigInt @map("amount_minor")
+  status QrPaymentStatus @default(PROCESSING)
+  intentTokenHash String @unique @map("intent_token_hash") @db.Char(64)
+  idempotencyKeyHash String @map("idempotency_key_hash") @db.Char(64)
+  requestHash String @map("request_hash") @db.Char(64)
+  ledgerJournalId String? @unique @map("ledger_journal_id") @db.Uuid
+  senderBalanceAfterMinor BigInt? @map("sender_balance_after_minor")
+  recipientBalanceAfterMinor BigInt? @map("recipient_balance_after_minor")
+  correlationId String @map("correlation_id") @db.Uuid
+  attemptCount Int @default(0) @map("attempt_count")
+  nextAttemptAt DateTime? @map("next_attempt_at") @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  completedAt DateTime? @map("completed_at") @db.Timestamptz(3)
+  failedAt DateTime? @map("failed_at") @db.Timestamptz(3)
+  qrPaymentRequest QrPaymentRequest @relation(fields: [qrPaymentRequestId], references: [id], onDelete: Restrict)
+  @@unique([senderCustomerId, idempotencyKeyHash])
+  @@index([senderCustomerId, createdAt])
+  @@index([status, nextAttemptAt])
+  @@map("qr_redemptions")
+}
+
+model QrPaymentEvent {
+  id String @id @default(uuid()) @db.Uuid
+  qrPaymentRequestId String @map("qr_payment_request_id") @db.Uuid
+  eventType QrPaymentEventType @map("event_type")
+  previousStatus String? @map("previous_status") @db.VarChar(32)
+  nextStatus String? @map("next_status") @db.VarChar(32)
+  safeCode String? @map("safe_code") @db.VarChar(64)
+  occurredAt DateTime @map("occurred_at") @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  qrPaymentRequest QrPaymentRequest @relation(fields: [qrPaymentRequestId], references: [id], onDelete: Restrict)
+  @@index([qrPaymentRequestId, occurredAt])
+  @@map("qr_payment_events")
+}
+
+// ─── Agent Cash Models ──────────────────────────────────────────────
+
+enum AgentCashOperationType {
+  AGENT_CASH_IN
+  AGENT_CASH_OUT
+}
+
+enum AgentCashOperationStatus {
+  PENDING_CONFIRMATION
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum AgentCashEventType {
+  OPERATION_CREATED
+  CUSTOMER_CONFIRMED
+  PROCESSING_STARTED
+  LEDGER_POSTED
+  COMPLETED
+  FAILED
+  CANCELLED
+  RECOVERY_RETRY
+}
+
+model AgentCashOperation {
+  id String @id @default(uuid()) @db.Uuid
+  displayReference String @unique @map("display_reference") @db.VarChar(32)
+  operationType AgentCashOperationType @map("operation_type")
+  status AgentCashOperationStatus @default(PENDING_CONFIRMATION)
+  agentId String @map("agent_id") @db.Uuid
+  agentReference String @map("agent_reference") @db.VarChar(24)
+  customerCustomerId String @map("customer_customer_id") @db.Uuid
+  customerAccountId String @map("customer_account_id") @db.Uuid
+  customerMaskedReference String @map("customer_masked_reference") @db.VarChar(24)
+  customerPublicReference String @map("customer_public_reference") @db.VarChar(24)
+  agentAccountId String @map("agent_account_id") @db.Uuid
+  currency String @db.Char(3)
+  amountMinor BigInt @map("amount_minor")
+  intentTokenHash String @unique @map("intent_token_hash") @db.Char(64)
+  idempotencyKeyHash String @map("idempotency_key_hash") @db.Char(64)
+  requestHash String @map("request_hash") @db.Char(64)
+  ledgerJournalId String? @unique @map("ledger_journal_id") @db.Uuid
+  correlationId String @map("correlation_id") @db.Uuid
+  attemptCount Int @default(0) @map("attempt_count")
+  nextAttemptAt DateTime? @map("next_attempt_at") @db.Timestamptz(3)
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(3)
+  confirmedAt DateTime? @map("confirmed_at") @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  completedAt DateTime? @map("completed_at") @db.Timestamptz(3)
+  failedAt DateTime? @map("failed_at") @db.Timestamptz(3)
+  events AgentCashEvent[]
+  @@unique([agentId, idempotencyKeyHash])
+  @@index([agentId, createdAt])
+  @@index([status, nextAttemptAt])
+  @@map("agent_cash_operations")
+}
+
+model AgentCashEvent {
+  id String @id @default(uuid()) @db.Uuid
+  operationId String @map("operation_id") @db.Uuid
+  eventType AgentCashEventType @map("event_type")
+  previousStatus AgentCashOperationStatus? @map("previous_status")
+  nextStatus AgentCashOperationStatus? @map("next_status")
+  safeCode String? @map("safe_code") @db.VarChar(64)
+  occurredAt DateTime @map("occurred_at") @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  operation AgentCashOperation @relation(fields: [operationId], references: [id], onDelete: Restrict)
+  @@index([operationId, occurredAt])
+  @@map("agent_cash_events")
+}
+
