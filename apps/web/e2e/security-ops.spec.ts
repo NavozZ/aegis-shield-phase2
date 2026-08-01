@@ -142,47 +142,43 @@ test('operator triages escalating risk, releases control and resolves incident @
   // The assertion at the end is that the console shows no active controls, and
   // that only follows from releasing one control if exactly one exists. Two
   // things break that assumption. The console renders a bounded page with a
-  // "Load more controls" button and refetches after each release, so a single
-  // zero reading can be a momentary mid-refetch state rather than an empty
-  // list. And this branch integrates Prompt 08 and Prompt 09, so the Jest
-  // transfer end-to-end now writes Risk controls to the same database earlier
-  // in the CI job — this journey is no longer the only producer.
+  // "Load more controls" button, so the first page emptying does not mean the
+  // list is empty. And this branch integrates Prompt 08 and Prompt 09, so the
+  // Jest transfer end-to-end now writes Risk controls to the same database
+  // earlier in the CI job — this journey is no longer the only producer.
   //
-  // Each pass reloads for a clean server-rendered view, expands every page, and
-  // releases what is there. The loop ends only when a freshly loaded, fully
-  // expanded list shows nothing, which is exactly the state the assertions
-  // below pin. Nothing is relaxed: no timeout replaces a state assertion, and
-  // the bounds fail loudly rather than passing on exhaustion.
+  // Nothing here is relaxed: no timeout replaces a state assertion, every
+  // release still asserts the list shrank, and both bounds fail loudly rather
+  // than passing on exhaustion.
+
+  // Confirm we are actually on the dashboard first. Both the control list and
+  // the empty-state message live here, so asserting either while the browser is
+  // still on the incident page yields "zero controls and no empty state" —
+  // which is what CI reported and which says nothing about the control list.
+  // The console keeps its operator session in memory, so navigation must stay
+  // in-app; a hard reload returns to the sign-in screen.
+  await expect(
+    page.getByRole('heading', { name: 'Risk operations overview' }),
+  ).toBeVisible();
+
   const release = page.getByRole('button', { name: 'Release' });
   const showMore = page.getByRole('button', { name: 'Load more controls' });
 
-  for (let pass = 0; pass < 15; pass += 1) {
-    await page.reload();
-    await expect(
-      page.getByRole('heading', { name: 'Risk operations overview' }),
-    ).toBeVisible();
+  // Expand every page of controls so the list below is the whole list.
+  for (let expand = 0; expand < 15 && (await showMore.count()) > 0; expand++) {
+    await showMore.first().click();
+  }
 
-    // Expand every page of controls before counting.
-    for (
-      let expand = 0;
-      expand < 15 && (await showMore.count()) > 0;
-      expand++
-    ) {
-      await showMore.first().click();
-    }
-
+  for (let pass = 0; pass < 25; pass += 1) {
     const remaining = await release.count();
     if (remaining === 0) break;
-
-    for (let index = 0; index < remaining; index += 1) {
-      page.once('dialog', (dialog) =>
-        dialog.accept('Verified safe recovery after operator review.'),
-      );
-      await release.first().click();
-      // The released control must leave the list, or we would spin on one the
-      // operator cannot release.
-      await expect(release).toHaveCount(remaining - index - 1);
-    }
+    page.once('dialog', (dialog) =>
+      dialog.accept('Verified safe recovery after operator review.'),
+    );
+    await release.first().click();
+    // The released control must leave the list, or we would spin on one the
+    // operator cannot release.
+    await expect(release).toHaveCount(remaining - 1);
   }
 
   await expect(release).toHaveCount(0);
