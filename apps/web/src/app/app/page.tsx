@@ -65,9 +65,21 @@ export default async function WorkspacePage() {
           <h2>{dictionary.transfersCard}</h2>
           <p>Send or receive secure customer transfers.</p>
         </Link>
-        {cards.map(([title, status]) => (
-          <EmptyFeatureCard key={title} title={title} status={status} />
-        ))}
+        <Link className="feature-card" href="/app/channels/qr">
+          <span aria-hidden="true">📷</span>
+          <h2>QR Pay</h2>
+          <p>Scan a QR code to pay instantly.</p>
+        </Link>
+        <Link className="feature-card" href="/app/channels/agent">
+          <span aria-hidden="true">🏪</span>
+          <h2>Agent Operations</h2>
+          <p>Perform Cash-In and Cash-Out transactions.</p>
+        </Link>
+        <Link className="feature-card" href="/app/channels/ussd">
+          <span aria-hidden="true">📱</span>
+          <h2>USSD Banking</h2>
+          <p>Simulate a mobile phone USSD session.</p>
+        </Link>
       </section>
     </div>
   );

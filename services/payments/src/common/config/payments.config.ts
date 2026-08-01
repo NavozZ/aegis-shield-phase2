@@ -17,6 +17,9 @@ export interface PaymentsConfig {
   recoveryStaleSeconds: number;
   maxProcessingAttempts: number;
   idempotencyRetentionHours: number;
+  qrSigningKey: string;
+  qrDynamicTtlSeconds: number;
+  qrStaticTtlHours: number;
 }
 export const PAYMENTS_CONFIG = Symbol('PAYMENTS_CONFIG');
 
@@ -72,6 +75,9 @@ export function createPaymentsConfig(): PaymentsConfig {
       'PAYMENTS_IDEMPOTENCY_RETENTION_HOURS',
       24,
     ),
+    qrSigningKey: required('PAYMENTS_QR_SIGNING_KEY'),
+    qrDynamicTtlSeconds: integer('PAYMENTS_QR_DYNAMIC_TTL_SECONDS', 300),
+    qrStaticTtlHours: integer('PAYMENTS_QR_STATIC_TTL_HOURS', 8760),
   };
   if (
     config.minTransferMinor > config.maxTransferMinor ||
@@ -85,7 +91,7 @@ export function createPaymentsConfig(): PaymentsConfig {
     throw new Error('LEDGER_SERVICE_URL must be HTTP or HTTPS.');
   if (
     config.nodeEnvironment === 'production' &&
-    [config.internalToken, config.ledgerInternalToken, config.databaseUrl].some(
+    [config.internalToken, config.ledgerInternalToken, config.databaseUrl, config.qrSigningKey].some(
       (value) => /change-me|local-only|placeholder|example-only/iu.test(value),
     )
   )

@@ -13,6 +13,16 @@ export const PAYMENTS_ENDPOINTS = {
     `/internal/customers/${encodeURIComponent(customerId)}/transfers${query}`,
   transfer: (customerId: string, id: string) =>
     `/internal/customers/${encodeURIComponent(customerId)}/transfers/${encodeURIComponent(id)}`,
+  
+  // Channels
+  qrIssue: '/internal/qr/issue',
+  qrPreview: '/internal/qr/preview',
+  qrRedeem: '/internal/qr/redeem',
+  agentCashInPreview: '/internal/agent/cash-in/preview',
+  agentCashOutPreview: '/internal/agent/cash-out/preview',
+  agentCashConfirm: '/internal/agent/cash/confirm',
+  agentStatus: (agentId: string, operationId: string) => `/internal/agent/${encodeURIComponent(agentId)}/cash/${encodeURIComponent(operationId)}/status`,
+  
   ready: '/health/ready',
 } as const;
 

@@ -36,6 +36,9 @@ const config: PaymentsConfig = {
   recoveryStaleSeconds: 30,
   maxProcessingAttempts: 3,
   idempotencyRetentionHours: 24,
+  qrSigningKey: 'test-key',
+  qrDynamicTtlSeconds: 300,
+  qrStaticTtlHours: 8760,
 };
 
 function intent(overrides: Record<string, unknown> = {}) {
