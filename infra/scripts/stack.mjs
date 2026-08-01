@@ -72,6 +72,12 @@ const SECRET_NAMES = [
   // must be redacted from stack output: a private key echoed into a terminal
   // scrollback is a compromised key.
   'SABCL_ROUTE_SECRET',
+  'RESILIENCE_INTERNAL_TOKEN',
+  'RESILIENCE_GATEWAY_SOURCE_TOKEN',
+  'RESILIENCE_TOOLING_SOURCE_TOKEN',
+  'DR_BACKUP_ENCRYPTION_KEY',
+  'RESILIENCE_DB_PASSWORD',
+  'RESILIENCE_DATABASE_URL',
   'SABCL_GATEWAY_ENCRYPTION_PRIVATE_KEY',
   'SABCL_GATEWAY_SIGNING_PRIVATE_KEY',
   'SABCL_IDENTITY_ENCRYPTION_PRIVATE_KEY',
@@ -137,6 +143,12 @@ const services = [
     // Nothing to route when SABCL is not configured, and the router refuses to
     // start in that case, so it is skipped rather than reported as broken.
     skip: () => (environment.SABCL_MODE || 'off').trim() === 'off',
+  },
+  {
+    name: 'Resilience',
+    entry: resolve(repositoryRoot, 'services', 'resilience', 'dist', 'main.js'),
+    cwd: resolve(repositoryRoot, 'services', 'resilience'),
+    readiness: `http://127.0.0.1:${environment.RESILIENCE_SERVICE_PORT || 4106}/health/live`,
   },
   {
     name: 'Risk',
@@ -252,7 +264,7 @@ try {
       ? ''
       : `, SABCL router ${environment.SABCL_ROUTER_PORT || 4103}`;
   process.stdout.write(
-    `[stack] Web 3000, Gateway 4000, Identity 4101, Ledger 4102, Payments 4104${sabclNote}, Risk ${environment.RISK_SERVICE_PORT || 4105} — press Ctrl+C to stop\n`,
+    `[stack] Web 3000, Gateway 4000, Identity 4101, Ledger 4102, Payments 4104${sabclNote}, Risk ${environment.RISK_SERVICE_PORT || 4105}, Resilience ${environment.RESILIENCE_SERVICE_PORT || 4106} — press Ctrl+C to stop\n`,
   );
 } catch (error) {
   process.stderr.write(

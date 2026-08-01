@@ -55,13 +55,31 @@ It is the least-trusted server-side element in the system, which is the point:
 it must be able to route and must not be able to read. See
 [ADR 0009](../decisions/0009-sabcl-privacy-and-secure-routing.md).
 
+## Resilience service responsibility
+
+`services/resilience` is loopback-bound on port 4106 with no browser CORS. An
+internal or per-source token protects every route except liveness and readiness.
+It owns the `aegis_resilience` database and `app` schema, and records recovery
+**evidence** only: which encrypted backup sets exist, which drills ran, what they
+measured, and what an operator said about a failure.
+
+It holds no customer data, no balances and no dump contents, and it never holds
+the backup encryption key — it validates that one is configured and records only
+that boolean.
+
+There is no route that runs a backup, runs a restore, executes a shell command,
+accepts a filesystem path or accepts a database connection string. Backup and
+restore are operator command-line tooling, because an endpoint that shelled out
+to `pg_dump` would be remote command execution behind a console login. See
+[ADR 0011](../decisions/0011-operational-resilience-and-dr.md) and
+[operational resilience and DR](./operational-resilience-and-dr.md).
+
 ## Future independent service boundaries
 
-- threat-detection
 - notifications
-- recovery
+- production observability and audit integrity
 
-Each stateful service will own its data store and publish explicit contracts. Shared packages may contain schemas and utilities, but never direct cross-service database access. Prompt 02 models that ownership with separate identity, ledger, payments, and audit databases and login roles inside one local PostgreSQL container.
+Each stateful service will own its data store and publish explicit contracts. Shared packages may contain schemas and utilities, but never direct cross-service database access. Prompt 02 models that ownership with separate identity, ledger, payments, and audit databases and login roles inside one local PostgreSQL container; Prompt 11 adds a fifth, `aegis_resilience`.
 
 ## Current and future data flow
 
@@ -76,6 +94,9 @@ Identity → Identity-owned PostgreSQL app schema
 Identity → Identity Redis namespace
 Ledger  → Ledger-owned PostgreSQL app schema
 SABCL router → Redis replay namespace (aegis:sabcl:)
+NestJS API Gateway → Resilience internal routes (gateway source token)
+Resilience → Resilience-owned PostgreSQL app schema
+Operator CLI → pg_dump / pg_restore / psql → every service database
 ```
 
 When `SABCL_MODE=off` the Gateway calls each service directly with an internal
@@ -91,7 +112,7 @@ Every monetary amount is an integer count of minor units: `BIGINT` in PostgreSQL
 
 ## Local data and messaging boundaries
 
-PostgreSQL provides four logically isolated prototype databases. Identity and the Ledger now use their own service databases and roles, while Redis stores bounded authentication state for:
+PostgreSQL provides five logically isolated prototype databases. Identity and the Ledger now use their own service databases and roles, while Redis stores bounded authentication state for:
 
 - sessions
 - OTP and passkey challenges
@@ -137,7 +158,8 @@ message identifier.
 Capabilities: `identity.step-up`, `ledger.accounts`, `ledger.postings`,
 `payments.transfer`. Reads and postings are separate so one token cannot both
 list accounts and move money. Reconciliation, recovery, journal entries and every
-browser-driven authentication flow have no SABCL route at all.
+browser-driven authentication flow have no SABCL route at all — including every
+Resilience route, which the Gateway reaches directly with its own source token.
 
 Full specification: [sabcl-protocol.md](../security/sabcl-protocol.md).
 
@@ -149,7 +171,18 @@ The following remain to be completed as their implementations are introduced:
 - production workload-authentication flow
 - external/QR payment flows
 - transaction history and statement flow
-- failure isolation and recovery flow
+- failure isolation flow beyond the implemented dependency-degradation policy
+
+## Prompt 11 recovery flow
+
+Backup and restore run outside the request path entirely. The CLI dumps each
+authoritative database, encrypts it with AES-256-GCM, publishes the set
+atomically, and reports identifiers, checksums and measurements to the Resilience
+service — which records them in append-only, transition-validated evidence.
+Restore verification creates freshly named disposable databases, proves the
+restore, and drops them; it can never target a live service database. Redis is
+deliberately out of scope, so sessions do not survive a restore. See
+[operational resilience and DR](./operational-resilience-and-dr.md).
 
 ## Prompt 07 transfer flow
 

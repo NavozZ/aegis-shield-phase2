@@ -115,6 +115,25 @@ jobs:
       SABCL_ROUTER_PORT: 4103
       SABCL_ROUTER_URL: http://127.0.0.1:4103
       SABCL_REDIS_PREFIX: 'aegis:sabcl:test:ci:'
+      # Operational resilience and disaster recovery.
+      #
+      # Every value here is a throwaway CI credential. DR_BACKUP_ENCRYPTION_KEY
+      # is the base64 of the ASCII string "ci-only-not-production-dr-key-32" —
+      # a valid 32-byte key so the real AES-256-GCM path is exercised, and
+      # obviously not a secret so nothing is protected by keeping it out of the
+      # log. A real key is never committed and never printed.
+      RESILIENCE_DB_PASSWORD: ci-only-resilience-password
+      RESILIENCE_DATABASE_URL: postgresql://aegis_resilience:ci-only-resilience-password@127.0.0.1:5432/aegis_resilience?schema=app
+      RESILIENCE_SERVICE_PORT: 4106
+      RESILIENCE_SERVICE_URL: http://127.0.0.1:4106
+      RESILIENCE_INTERNAL_TOKEN: ci-only-resilience-internal-token
+      RESILIENCE_GATEWAY_SOURCE_TOKEN: ci-only-resilience-gateway-source-token
+      RESILIENCE_TOOLING_SOURCE_TOKEN: ci-only-resilience-tooling-source-token
+      DR_BACKUP_ENCRYPTION_KEY: Y2ktb25seS1ub3QtcHJvZHVjdGlvbi1kci1rZXktMzI=
+      DR_BACKUP_DIR: /tmp/aegis-dr-backups
+      # The administrative connection used only to create and drop the
+      # disposable verification databases an isolated restore needs.
+      DATABASE_URL: postgresql://aegis_admin:ci-only-admin-password@127.0.0.1:5432/postgres
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -133,7 +152,23 @@ jobs:
         run: pnpm infra:up
       - name: Check infrastructure health
         run: pnpm infra:check
-      - name: Generate Identity, Ledger, Payments and Risk Prisma Clients
+      # The DR tooling shells out to pg_dump, pg_restore and psql. Those must be
+      # at least the server's major version, and the runner image ships an older
+      # client than the PostgreSQL 17 container the stack uses, so the matching
+      # client is installed explicitly. The version is printed so a mismatch
+      # fails here with an obvious message rather than inside a drill.
+      - name: Install PostgreSQL 17 client tools
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+            https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends postgresql-client-17
+          pg_dump --version
+          pg_restore --version
+      - name: Generate Identity, Ledger, Payments, Risk and Resilience Prisma Clients
         run: pnpm db:generate
       - name: Apply committed Identity migrations
         run: pnpm db:deploy:identity
@@ -143,6 +178,8 @@ jobs:
         run: pnpm db:deploy:payments
       - name: Apply committed Risk migrations
         run: pnpm db:deploy:risk
+      - name: Apply committed Resilience migrations
+        run: pnpm db:deploy:resilience
       - name: Test infrastructure tooling
         run: node --test infra/scripts/infra.test.mjs
       - name: Test shared contracts
@@ -173,8 +210,15 @@ jobs:
         run: pnpm channels:test:agent
       - name: Test deterministic Risk rules, controls and retention units
         run: pnpm risk:test
+      # Covers startup configuration, controlled dependency-failure policy, and
+      # the backup manifest refusals: path traversal, symlink escape, duplicate
+      # service, unsupported version, wrong key and tampered ciphertext.
+      - name: Test Resilience units, failure policy and backup tooling refusals
+        run: pnpm resilience:test
       - name: Test Risk PostgreSQL, Redis, ingestion and lifecycle integration
         run: pnpm risk:test:integration
+      - name: Test Resilience PostgreSQL append-only drill evidence
+        run: pnpm resilience:test:integration
       - name: Test Ledger PostgreSQL transfer integration and concurrency
         run: pnpm ledger:test:integration
       - name: Test Payments PostgreSQL transfer processing
@@ -241,6 +285,80 @@ jobs:
           # `set -e` is on, so a failing reconcile would abort before any
           # cleanup line; the trap above handles shutdown either way.
           pnpm risk:reconcile
+      # Backup and restore are operator command-line tooling, never an HTTP
+      # endpoint, so they are invoked here the same way an operator would.
+      - name: Create and verify an encrypted backup set
+        run: |
+          pnpm dr:backup
+          pnpm dr:backup:verify
+      - name: Refuse tampered, wrong-key, incomplete and unsafe backup sets
+        run: pnpm dr:backup:verify:negative
+      # The restore target is always a freshly created disposable database with
+      # a generated name; the tooling refuses any target that matches a live
+      # service database, and drops what it created before it exits.
+      - name: Verify an isolated restore into disposable databases
+        run: pnpm dr:restore:verify
+      - name: Run the deterministic disaster-recovery drill
+        run: |
+          pnpm --filter @aegis/resilience-service build
+          pnpm --filter @aegis/risk-service build
+          ( cd services/risk && exec node dist/main.js ) &
+          risk_pid=$!
+          ( cd services/resilience && exec node dist/main.js ) &
+          resilience_pid=$!
+          cleanup() {
+            kill "$resilience_pid" 2>/dev/null || true
+            kill "$risk_pid" 2>/dev/null || true
+            wait "$resilience_pid" 2>/dev/null || true
+            wait "$risk_pid" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+          wait_for_live() {
+            name=$1
+            url=$2
+            pid=$3
+            for attempt in $(seq 1 60); do
+              if curl -fsS "$url" >/dev/null 2>&1; then
+                return 0
+              fi
+              if ! kill -0 "$pid" 2>/dev/null; then
+                echo "$name exited during startup"
+                exit 1
+              fi
+              if [ "$attempt" -eq 60 ]; then
+                echo "$name did not become live within 60s"
+                exit 1
+              fi
+              sleep 1
+            done
+          }
+          wait_for_live Risk http://127.0.0.1:4105/health/live "$risk_pid"
+          wait_for_live Resilience http://127.0.0.1:4106/health/live "$resilience_pid"
+          # The drill takes a backup, verifies it, restores into disposable
+          # databases, runs the Ledger, Payments, Risk and Resilience
+          # reconciliations, records the measured prototype recovery-point age
+          # and recovery duration, then cleans up. It fails loudly on any of
+          # those steps rather than recording a drill that proved nothing.
+          pnpm dr:drill
+      # A backup set is customer data under a key, and a decrypted dump is
+      # customer data in the clear. Neither may survive the job or reach an
+      # artifact, so the working directory is removed and its absence asserted.
+      - name: Remove backup working directory and assert no plaintext remains
+        if: always()
+        run: |
+          if [ -d "$DR_BACKUP_DIR" ]; then
+            find "$DR_BACKUP_DIR" -type f -name '*.dump' -print -quit | grep -q . \
+              && { echo "A decrypted dump survived the drill."; exit 1; }
+            rm -rf "$DR_BACKUP_DIR"
+          fi
+          # /tmp is also where the tooling stages work; nothing may be left.
+          leftovers=$(find /tmp -maxdepth 1 -name 'aegis-dr-*' -print 2>/dev/null || true)
+          if [ -n "$leftovers" ]; then
+            echo "Disaster-recovery working directories were left behind:"
+            echo "$leftovers"
+            rm -rf /tmp/aegis-dr-*
+            exit 1
+          fi
       - name: Upload Playwright report on failure
         if: failure()
         uses: actions/upload-artifact@v7
@@ -270,7 +388,7 @@ jobs:
           cache: pnpm
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      - name: Generate Identity, Ledger, Payments and Risk Prisma Clients
+      - name: Generate Identity, Ledger, Payments, Risk and Resilience Prisma Clients
         run: pnpm db:generate
       - name: Build
         run: pnpm build

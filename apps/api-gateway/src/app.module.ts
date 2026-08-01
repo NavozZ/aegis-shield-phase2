@@ -10,6 +10,7 @@ import { TransfersModule } from './transfers/transfers.module';
 import { ChannelsModule } from './channels/channels.module';
 import { RiskModule } from './risk/risk.module';
 import { OperatorsModule } from './operators/operators.module';
+import { ResilienceModule } from './resilience/resilience.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { OperatorsModule } from './operators/operators.module';
     TransfersModule,
     RiskModule,
     OperatorsModule,
+    ResilienceModule,
     HealthModule,
     ChannelsModule,
   ],

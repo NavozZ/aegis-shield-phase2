@@ -25,6 +25,9 @@ services:
       AUDIT_DB_NAME: ${AUDIT_DB_NAME:-aegis_audit}
       AUDIT_DB_USER: ${AUDIT_DB_USER:-aegis_audit}
       AUDIT_DB_PASSWORD: ${AUDIT_DB_PASSWORD:-aegis-local-audit-change-me}
+      RESILIENCE_DB_NAME: ${RESILIENCE_DB_NAME:-aegis_resilience}
+      RESILIENCE_DB_USER: ${RESILIENCE_DB_USER:-aegis_resilience}
+      RESILIENCE_DB_PASSWORD: ${RESILIENCE_DB_PASSWORD:-aegis-local-resilience-change-me}
     volumes:
       - aegis-postgres-data:/var/lib/postgresql/data
       - ./infra/docker/postgres/init:/docker-entrypoint-initdb.d:ro

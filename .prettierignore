@@ -13,3 +13,4 @@ services/identity/src/generated/
 services/ledger/src/generated/
 services/payments/src/generated/
 services/risk/src/generated/
+services/resilience/src/generated/

@@ -28,7 +28,7 @@ To be completed during implementation. Demonstrate inclusive access controls, se
 
 ## Threat detection
 
-To be completed during implementation. Demonstrate a synthetic threat signal, risk assessment, alert evidence, and bounded automated response.
+Implemented in Prompt 10. See [risk-controls-demo.md](risk-controls-demo.md).
 
 ## Service quarantine
 
@@ -36,7 +36,17 @@ To be completed during implementation. Demonstrate isolation of a simulated comp
 
 ## Recovery
 
-To be completed during implementation. Demonstrate controlled failure, restore, reconciliation, tamper-evident audit verification, and return to service.
+Implemented in Prompt 11. See
+[disaster-recovery-demo.md](disaster-recovery-demo.md). Demonstrates an encrypted
+backup set, checksum-before-decrypt verification, the tamper, wrong-key,
+incomplete and path-unsafe refusals against a real set, an isolated restore into
+disposable databases, the full deterministic drill, the recovery operations
+console, a controlled dependency failure and recovery, and the append-only
+evidence trail refusing to be rewritten.
+
+It is a prototype drill against local disposable infrastructure: no multi-region
+disaster recovery, no continuous replication, no zero data loss, no compliance
+certification, and no guaranteed recovery-point or recovery-time objective.
 
 ## SABCL traffic comparison
 

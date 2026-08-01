@@ -2,7 +2,7 @@
 
 AEGIS Shield is a zero-trust, resilient, and inclusive digital banking platform with SABCL metadata protection. This monorepo is the official Duothan 6.0 Phase 2 workspace for demonstrating secure banking journeys under normal operation, active threats, and service failure.
 
-> **Current status:** Prompt 10 deterministic threat detection and automated controls, integrated with Prompt 08 inclusive channels and Prompt 09 SABCL routing. The multilingual customer UI, security-operator console, API Gateway, independent Identity, Payments, Ledger, SABCL router and Risk services, QR/USSD/agent-cash channels, encrypted metadata-minimising service routing, enforceable controls, incident audit, recovery, reconciliation, and real browser validation are implemented.
+> **Current status:** Prompt 11 operational resilience and disaster recovery, on top of Prompt 08 inclusive channels, Prompt 09 SABCL routing and Prompt 10 threat detection. The multilingual customer UI, security-operator console, recovery operations console, API Gateway, independent Identity, Payments, Ledger, SABCL router, Risk and Resilience services, QR/USSD/agent-cash channels, encrypted metadata-minimising service routing, enforceable controls, incident audit, encrypted backup sets with isolated restore verification, deterministic recovery drills, reconciliation, and real browser validation are implemented.
 
 ## Core problem
 
@@ -61,8 +61,11 @@ What it does not do is documented as carefully as what it does: padding hides ex
 - Risk recovery/reconciliation plus real escalation, triage, release and recovery browser coverage
 - Reserved boundaries for future services, shared packages, and infrastructure
 - SABCL/1 encrypted service envelopes, an independent blind router on port 4103, opaque route tokens, capability path allowlists, Redis-backed replay protection, key rotation and revocation, and an operator status page
+- AES-256-GCM encrypted backup sets for the five authoritative databases, checksum-before-decrypt verification, and refusal of tampered, incomplete, wrong-key and path-unsafe sets
+- Isolated restore verification into disposable databases that can never target a live service database
+- Deterministic recovery drills with an append-only, transition-validated evidence trail and a recovery operations console
 
-External payment rails, a trained fraud model, production workforce identity, production messaging, and disaster recovery are intentionally deferred. QR/offline payments arrived in Prompt 08, SABCL in Prompt 09, and threat detection with service quarantine in Prompt 10.
+External payment rails, a trained fraud model, production workforce identity, and production messaging are intentionally deferred. QR/offline payments arrived in Prompt 08, SABCL in Prompt 09, threat detection with service quarantine in Prompt 10, and prototype operational resilience with encrypted backup and recovery drills in Prompt 11. Production multi-region disaster recovery, continuous replication, zero data loss and compliance certification are explicitly **not** provided.
 
 ## Monorepo structure
 
@@ -86,6 +89,7 @@ External payment rails, a trained fraud model, production workforce identity, pr
 |-- services/ledger/          # Private accounts and double-entry ledger service
 |-- services/payments/        # Private customer transfer orchestration service
 |-- services/risk/            # Threat detection, incidents and scoped controls
+|-- services/resilience/      # Recovery drill evidence and backup-set registry
 |-- services/sabcl-router/    # Blind router: forwards envelopes it cannot read
 |-- package.json              # Root scripts and tool versions
 |-- pnpm-lock.yaml            # Single dependency lockfile
@@ -164,6 +168,7 @@ pnpm dev
 - Ledger service: `http://127.0.0.1:4102` (internal only)
 - Payments service: `http://127.0.0.1:4104` (internal only)
 - Risk service: `http://127.0.0.1:4105` (internal only)
+- Resilience service: `http://127.0.0.1:4106` (internal only)
 
 Start a single application:
 
@@ -275,6 +280,47 @@ See the [SABCL router README](services/sabcl-router/README.md),
 [operations runbook](docs/security/sabcl-runbook.md), and the
 [SABCL routing demo](docs/demo/sabcl-routing-demo.md).
 
+## Operational resilience and disaster recovery
+
+Backup and restore are operator command-line tooling. No HTTP route runs a
+backup, runs a restore, accepts a filesystem path, accepts a database connection
+string or executes a shell command — a console button that shells out would be
+remote command execution behind a login.
+
+```bash
+pnpm dr:backup                  # encrypted set of the five authoritative databases
+pnpm dr:backup:verify           # checksums and authenticity, no restore
+pnpm dr:backup:verify:negative  # prove the tamper/wrong-key/incomplete refusals
+pnpm dr:restore:verify          # isolated restore into disposable databases
+pnpm dr:drill                   # the full deterministic drill
+pnpm resilience:reconcile       # evidence consistency
+```
+
+Generate a local backup key and put it in `.env` as `DR_BACKUP_ENCRYPTION_KEY`:
+
+```bash
+node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"
+```
+
+Never commit a key. Redis is deliberately not backed up: it holds recreatable
+cache, replay and velocity state, so after a restore customers sign in again.
+
+Security operators read recovery readiness and drill history at
+`/security-ops/resilience`. The figures shown are a **measured prototype
+recovery-point age** and a **measured prototype recovery duration** from a drill
+against local disposable infrastructure — not an RPO or RTO, and not a guarantee.
+
+See [operational resilience architecture](docs/architecture/operational-resilience-and-dr.md),
+[ADR 0011](docs/decisions/0011-operational-resilience-and-dr.md),
+[backup encryption and key management](docs/security/backup-encryption-and-key-management.md),
+[disaster-recovery threat model](docs/security/disaster-recovery-threat-model.md),
+[recovery operator authorization](docs/security/recovery-operator-authorization.md),
+[backup retention and disposal](docs/security/backup-retention-and-disposal.md),
+[disaster-recovery runbook](docs/operations/disaster-recovery-runbook.md),
+[service failure runbook](docs/operations/service-failure-runbook.md),
+[backup and restore runbook](docs/operations/backup-restore-runbook.md), and the
+[disaster recovery demo](docs/demo/disaster-recovery-demo.md).
+
 ## Next milestones
 
 - production workload identity and OTP delivery
@@ -282,8 +328,9 @@ See the [SABCL router README](services/sabcl-router/README.md),
 - idempotent transfers, payments, and inclusive access channels
 - ~~SABCL metadata-protection path~~ — implemented in Prompt 09
 - ~~threat detection and service quarantine~~ — implemented in Prompt 10
+- ~~prototype backup, restore verification and recovery drills~~ — implemented in Prompt 11
 - governed fraud-model evaluation and production workforce identity
-- observability, audit integrity, and recovery
+- observability, audit integrity, backup key custody and offsite immutable storage
 
 Each milestone will use a short-lived branch and a traceable pull request as described in [CONTRIBUTING.md](CONTRIBUTING.md).
 
