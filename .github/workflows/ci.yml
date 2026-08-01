@@ -204,8 +204,43 @@ jobs:
       # by the earlier steps is still there to be checked.
       - name: Restart infrastructure for reconciliation
         run: pnpm infra:up && pnpm infra:check
-      - name: Reconcile Ledger, Payments and Risk links and controls
-        run: pnpm --filter @aegis/ledger-service build && pnpm --filter @aegis/payments-service build && pnpm --filter @aegis/risk-service build && pnpm ledger:reconcile && pnpm payments:reconcile && pnpm risk:reconcile
+      - name: Reconcile Ledger and Payments
+        run: pnpm --filter @aegis/ledger-service build && pnpm --filter @aegis/payments-service build && pnpm ledger:reconcile && pnpm payments:reconcile
+      # Ledger and Payments reconcile straight against their databases, but the
+      # Risk reconciliation is an authenticated call to the running service —
+      # it recomputes control and incident state behind its own internal-token
+      # boundary rather than reaching into the schema. The browser harness
+      # stopped the application services, so Risk is started again just for this
+      # check and shut down immediately afterwards.
+      - name: Reconcile Risk links and controls
+        run: |
+          pnpm --filter @aegis/risk-service build
+          # Started from its own directory, the way main.ts expects when it
+          # resolves the repository .env relative to the service.
+          ( cd services/risk && exec node dist/main.js ) &
+          risk_pid=$!
+          cleanup() {
+            kill "$risk_pid" 2>/dev/null || true
+            wait "$risk_pid" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+          for attempt in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:4105/health/live >/dev/null 2>&1; then
+              break
+            fi
+            if ! kill -0 "$risk_pid" 2>/dev/null; then
+              echo "Risk exited during startup"
+              exit 1
+            fi
+            if [ "$attempt" -eq 60 ]; then
+              echo "Risk did not become live within 60s"
+              exit 1
+            fi
+            sleep 1
+          done
+          # `set -e` is on, so a failing reconcile would abort before any
+          # cleanup line; the trap above handles shutdown either way.
+          pnpm risk:reconcile
       - name: Upload Playwright report on failure
         if: failure()
         uses: actions/upload-artifact@v7
