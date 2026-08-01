@@ -3,6 +3,7 @@
 import { formatMoney, type TransactionHistoryResponse } from '@aegis/contracts';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useLanguage } from '@/lib/i18n/language-provider';
 
 export function TransactionHistory({
   accountId,
@@ -14,6 +15,7 @@ export function TransactionHistory({
   const router = useRouter();
   const path = usePathname();
   const params = useSearchParams();
+  const { dictionary } = useLanguage();
   function set(name: string, value: string) {
     const next = new URLSearchParams(params);
     if (value) next.set(name, value);
@@ -21,38 +23,91 @@ export function TransactionHistory({
     next.delete('cursor');
     router.replace(`${path}?${next}`);
   }
+  const label = (value: string) =>
+    value === 'INCOMING'
+      ? dictionary.incoming
+      : value === 'OUTGOING'
+        ? dictionary.outgoing
+        : value === 'FUNDING'
+          ? dictionary.funding
+          : value === 'ADJUSTMENT'
+            ? dictionary.adjustment
+            : dictionary.other;
+  function clear() {
+    router.replace(path);
+  }
   return (
     <section className="transaction-history" aria-labelledby="history-heading">
       <div className="workspace-title">
         <div>
-          <p className="eyebrow">Immutable ledger</p>
-          <h2 id="history-heading">Transaction history</h2>
+          <p className="eyebrow">{dictionary.accounts}</p>
+          <h2 id="history-heading">{dictionary.transactionHistory}</h2>
         </div>
       </div>
-      <div className="history-filters" aria-label="Transaction filters">
+      <div
+        className="history-filters"
+        aria-label={dictionary.transactionHistory}
+      >
         <label>
-          Direction
+          {dictionary.direction}
           <select
             value={params.get('direction') || ''}
             onChange={(event) => set('direction', event.target.value)}
           >
-            <option value="">All directions</option>
-            <option value="INCOMING">Incoming</option>
-            <option value="OUTGOING">Outgoing</option>
+            <option value="">{dictionary.direction}</option>
+            <option value="INCOMING">{dictionary.incoming}</option>
+            <option value="OUTGOING">{dictionary.outgoing}</option>
           </select>
         </label>
         <label>
-          Category
+          {dictionary.category}
           <select
             value={params.get('category') || ''}
             onChange={(event) => set('category', event.target.value)}
           >
-            <option value="">All categories</option>
-            <option value="FUNDING">Funding</option>
-            <option value="ADJUSTMENT">Adjustment</option>
-            <option value="OTHER">Other</option>
+            <option value="">{dictionary.category}</option>
+            <option value="FUNDING">{dictionary.funding}</option>
+            <option value="ADJUSTMENT">{dictionary.adjustment}</option>
+            <option value="OTHER">{dictionary.other}</option>
           </select>
         </label>
+        <label>
+          {dictionary.dateFrom}
+          <input
+            type="datetime-local"
+            aria-label={dictionary.dateFrom}
+            onChange={(event) =>
+              set(
+                'dateFrom',
+                event.target.value
+                  ? new Date(event.target.value).toISOString()
+                  : '',
+              )
+            }
+          />
+        </label>
+        <label>
+          {dictionary.dateTo}
+          <input
+            type="datetime-local"
+            aria-label={dictionary.dateTo}
+            onChange={(event) =>
+              set(
+                'dateTo',
+                event.target.value
+                  ? new Date(event.target.value).toISOString()
+                  : '',
+              )
+            }
+          />
+        </label>
+        <button
+          type="button"
+          className="button button-secondary"
+          onClick={clear}
+        >
+          {dictionary.clearFilters}
+        </button>
       </div>
       {initial.transactions.length ? (
         <ol className="transaction-list">
@@ -60,11 +115,9 @@ export function TransactionHistory({
             <li key={item.id}>
               <Link href={`/app/accounts/${accountId}/transactions/${item.id}`}>
                 <span>
-                  <strong>
-                    {item.direction === 'INCOMING' ? 'Incoming' : 'Outgoing'}
-                  </strong>
+                  <strong>{label(item.direction)}</strong>
                   <small>
-                    {item.category} · {item.displayReference}
+                    {label(item.category)} · {item.displayReference}
                   </small>
                 </span>
                 <span
@@ -85,7 +138,7 @@ export function TransactionHistory({
           ))}
         </ol>
       ) : (
-        <p role="status">No posted activity matches these filters.</p>
+        <p role="status">{dictionary.noTransactionsYet}</p>
       )}
       {initial.nextCursor ? (
         <button
@@ -96,7 +149,7 @@ export function TransactionHistory({
             router.push(`${path}?${next}`);
           }}
         >
-          Load more
+          {dictionary.loadMore}
         </button>
       ) : null}
     </section>

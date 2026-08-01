@@ -1,6 +1,6 @@
 # AEGIS Shield Phase 2 User Guide
 
-This guide explains how to run and demonstrate the Prompt 05 customer onboarding, secure sign-in, and Tier-0 account experience. The platform performs no money movement; the authenticated workspace clearly marks deferred features.
+This guide explains how to run and demonstrate the Prompt 06 customer onboarding, secure sign-in, Tier-0 account, and read-only transaction-history experience. The platform performs no customer money movement; the authenticated workspace clearly marks deferred features.
 
 ## Introduction
 

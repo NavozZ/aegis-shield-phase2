@@ -2,7 +2,7 @@
 
 AEGIS Shield is a zero-trust, resilient, and inclusive digital banking platform with SABCL metadata protection. This monorepo is the official Duothan 6.0 Phase 2 workspace for demonstrating secure banking journeys under normal operation, active threats, and service failure.
 
-> **Current status:** Prompt 05 accounts and double-entry ledger. The multilingual web UI, API Gateway, independent Identity and Ledger services, PostgreSQL/Redis state, shared contracts, protected application shell, Tier-0 account provisioning, and browser validation are implemented.
+> **Current status:** Prompt 06 read-only transaction history. The multilingual web UI, API Gateway, independent Identity and Ledger services, PostgreSQL/Redis state, shared contracts, protected application shell, Tier-0 account provisioning, and browser validation are implemented.
 
 ## Core problem
 
