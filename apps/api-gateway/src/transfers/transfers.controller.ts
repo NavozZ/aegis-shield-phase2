@@ -137,8 +137,7 @@ export class TransfersController {
       request,
       { body: {}, customerId },
     );
-    if (response) this.cache(response);
-    return this.payments.request(
+    const result = await this.payments.request(
       PAYMENTS_ENDPOINTS.confirm,
       'POST',
       transferDetailSchema,
@@ -151,6 +150,13 @@ export class TransfersController {
         }),
       },
     );
+    if (response) {
+      this.cache(response);
+      response.status(
+        result.status === 'PROCESSING' ? HttpStatus.ACCEPTED : HttpStatus.OK,
+      );
+    }
+    return result;
   }
   @Get() async list(
     @Req() request: RequestContext,
