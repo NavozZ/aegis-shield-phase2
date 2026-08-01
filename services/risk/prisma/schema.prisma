@@ -1,0 +1,218 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum RiskSeverity {
+  INFO
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum RiskBand {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum RiskDecision {
+  ALLOW
+  ALLOW_WITH_MONITORING
+  REQUIRE_STEP_UP
+  HOLD_FOR_REVIEW
+  BLOCK
+  QUARANTINE
+}
+
+enum ControlStatus {
+  ACTIVE
+  RELEASED
+  EXPIRED
+  OVERRIDDEN
+}
+
+enum IncidentStatus {
+  OPEN
+  INVESTIGATING
+  CONTAINED
+  RESOLVED
+  FALSE_POSITIVE
+}
+
+model SecurityEvent {
+  id            String           @id @db.Uuid
+  source        String           @db.VarChar(32)
+  sourceEventId String           @map("source_event_id") @db.VarChar(128)
+  schemaVersion String           @map("schema_version") @db.VarChar(16)
+  eventType     String           @map("event_type") @db.VarChar(64)
+  severity      RiskSeverity
+  occurredAt    DateTime         @map("occurred_at") @db.Timestamptz(3)
+  receivedAt    DateTime         @default(now()) @map("received_at") @db.Timestamptz(3)
+  subjectId     String?          @map("subject_id") @db.VarChar(128)
+  accountId     String?          @map("account_id") @db.VarChar(128)
+  sessionId     String?          @map("session_id") @db.VarChar(128)
+  deviceId      String?          @map("device_id") @db.VarChar(128)
+  recipientId   String?          @map("recipient_id") @db.VarChar(128)
+  correlationId String           @map("correlation_id") @db.Uuid
+  attributes    Json             @default("{}")
+  assessments   RiskAssessment[]
+
+  @@unique([source, sourceEventId])
+  @@index([receivedAt])
+  @@index([severity, occurredAt])
+  @@index([subjectId, occurredAt])
+  @@map("security_events")
+}
+
+model RuleSetVersion {
+  id            String     @id @default(uuid()) @db.Uuid
+  version       String     @unique @db.VarChar(32)
+  active        Boolean    @default(false)
+  configuration Json
+  createdAt     DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+  rules         RiskRule[]
+
+  @@map("rule_set_versions")
+}
+
+model RiskRule {
+  id            String         @id @default(uuid()) @db.Uuid
+  ruleSetId     String         @map("rule_set_id") @db.Uuid
+  code          String         @db.VarChar(64)
+  weight        Int
+  configuration Json
+  enabled       Boolean        @default(true)
+  ruleSet       RuleSetVersion @relation(fields: [ruleSetId], references: [id], onDelete: Restrict)
+
+  @@unique([ruleSetId, code])
+  @@map("risk_rules")
+}
+
+model RiskAssessment {
+  id                    String          @id @db.Uuid
+  evaluationId          String          @unique @map("evaluation_id") @db.Uuid
+  eventId               String?         @map("event_id") @db.Uuid
+  subjectId             String          @map("subject_id") @db.VarChar(128)
+  operation             String          @db.VarChar(64)
+  score                 Int
+  band                  RiskBand
+  decision              RiskDecision
+  triggeredRules        String[]        @map("triggered_rules")
+  reasonCodes           String[]        @map("reason_codes")
+  controlRecommendation String?         @map("control_recommendation") @db.VarChar(32)
+  inputFacts            Json            @map("input_facts")
+  ruleSetVersion        String          @map("rule_set_version") @db.VarChar(32)
+  publicExplanation     String          @map("public_explanation") @db.VarChar(256)
+  expiresAt             DateTime        @map("expires_at") @db.Timestamptz(3)
+  createdAt             DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  event                 SecurityEvent?  @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  controls              ControlAction[]
+  incidents             Incident[]
+
+  @@index([subjectId, createdAt])
+  @@index([band, createdAt])
+  @@map("risk_assessments")
+}
+
+model ControlAction {
+  id                 String          @id @default(uuid()) @db.Uuid
+  idempotencyKeyHash String          @unique @map("idempotency_key_hash") @db.Char(64)
+  type               String          @db.VarChar(32)
+  scopeType          String          @map("scope_type") @db.VarChar(32)
+  scopeId            String          @map("scope_id") @db.VarChar(128)
+  operation          String?         @db.VarChar(64)
+  reasonCode         String          @map("reason_code") @db.VarChar(64)
+  status             ControlStatus   @default(ACTIVE)
+  assessmentId       String?         @map("assessment_id") @db.Uuid
+  incidentId         String?         @map("incident_id") @db.Uuid
+  createdBy          String          @map("created_by") @db.VarChar(128)
+  expiresAt          DateTime        @map("expires_at") @db.Timestamptz(3)
+  createdAt          DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+  assessment         RiskAssessment? @relation(fields: [assessmentId], references: [id], onDelete: Restrict)
+  incident           Incident?       @relation(fields: [incidentId], references: [id], onDelete: Restrict)
+  events             ControlEvent[]
+
+  @@index([scopeType, scopeId, status, expiresAt])
+  @@index([status, expiresAt])
+  @@map("control_actions")
+}
+
+model ControlEvent {
+  id         String        @id @default(uuid()) @db.Uuid
+  controlId  String        @map("control_id") @db.Uuid
+  eventType  String        @map("event_type") @db.VarChar(32)
+  actorId    String        @map("actor_id") @db.VarChar(128)
+  reason     String        @db.VarChar(500)
+  occurredAt DateTime      @default(now()) @map("occurred_at") @db.Timestamptz(3)
+  control    ControlAction @relation(fields: [controlId], references: [id], onDelete: Restrict)
+
+  @@index([controlId, occurredAt])
+  @@map("control_events")
+}
+
+model Incident {
+  id               String          @id @default(uuid()) @db.Uuid
+  assessmentId     String?         @map("assessment_id") @db.Uuid
+  severity         RiskSeverity
+  status           IncidentStatus  @default(OPEN)
+  title            String          @db.VarChar(160)
+  assignedTo       String?         @map("assigned_to") @db.VarChar(128)
+  resolutionReason String?         @map("resolution_reason") @db.VarChar(500)
+  createdAt        DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+  resolvedAt       DateTime?       @map("resolved_at") @db.Timestamptz(3)
+  assessment       RiskAssessment? @relation(fields: [assessmentId], references: [id], onDelete: Restrict)
+  controls         ControlAction[]
+  events           IncidentEvent[]
+
+  @@index([status, severity, createdAt])
+  @@map("incidents")
+}
+
+model IncidentEvent {
+  id          String   @id @default(uuid()) @db.Uuid
+  incidentId  String   @map("incident_id") @db.Uuid
+  eventType   String   @map("event_type") @db.VarChar(32)
+  actorId     String   @map("actor_id") @db.VarChar(128)
+  note        String?  @db.VarChar(1000)
+  evidenceRef String?  @map("evidence_ref") @db.VarChar(256)
+  occurredAt  DateTime @default(now()) @map("occurred_at") @db.Timestamptz(3)
+  incident    Incident @relation(fields: [incidentId], references: [id], onDelete: Restrict)
+
+  @@index([incidentId, occurredAt])
+  @@map("incident_events")
+}
+
+model SourceHealth {
+  source         String   @id @db.VarChar(32)
+  lastEventId    String   @map("last_event_id") @db.Uuid
+  lastOccurredAt DateTime @map("last_occurred_at") @db.Timestamptz(3)
+  lastReceivedAt DateTime @map("last_received_at") @db.Timestamptz(3)
+  acceptedCount  BigInt   @default(0) @map("accepted_count")
+  duplicateCount BigInt   @default(0) @map("duplicate_count")
+
+  @@map("source_health")
+}
+
+model OperatorAudit {
+  id            String   @id @default(uuid()) @db.Uuid
+  operatorId    String   @map("operator_id") @db.VarChar(128)
+  action        String   @db.VarChar(64)
+  targetType    String   @map("target_type") @db.VarChar(32)
+  targetId      String   @map("target_id") @db.VarChar(128)
+  reason        String   @db.VarChar(500)
+  correlationId String   @map("correlation_id") @db.Uuid
+  occurredAt    DateTime @default(now()) @map("occurred_at") @db.Timestamptz(3)
+
+  @@index([operatorId, occurredAt])
+  @@map("operator_audits")
+}

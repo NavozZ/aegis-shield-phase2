@@ -84,6 +84,7 @@ describe('Customer transfers through Gateway, Identity, Payments and Ledger (e2e
   let identity: ChildProcess;
   let ledger: ChildProcess;
   let payments: ChildProcess;
+  let risk: ChildProcess;
   let gateway: INestApplication<App>;
   let root: string;
 
@@ -234,6 +235,16 @@ describe('Customer transfers through Gateway, Identity, Payments and Ledger (e2e
     process.env.IDENTITY_INTERNAL_TOKEN = 'test-transfer-identity-token';
     process.env.LEDGER_INTERNAL_TOKEN = 'test-transfer-ledger-token';
     process.env.PAYMENTS_INTERNAL_TOKEN = 'test-transfer-payments-token';
+    process.env.RISK_INTERNAL_TOKEN = 'test-transfer-risk-token';
+    process.env.RISK_GATEWAY_SOURCE_TOKEN = 'test-transfer-gateway-source';
+    process.env.RISK_IDENTITY_SOURCE_TOKEN = 'test-transfer-identity-source';
+    process.env.RISK_PAYMENTS_SOURCE_TOKEN = 'test-transfer-payments-source';
+    process.env.RISK_LEDGER_SOURCE_TOKEN = 'test-transfer-ledger-source';
+    process.env.RISK_INFRASTRUCTURE_SOURCE_TOKEN = 'test-transfer-infra-source';
+    process.env.RISK_CHANNEL_SOURCE_TOKEN = 'test-transfer-channel-source';
+    process.env.RISK_OPERATOR_BOOTSTRAP_TOKEN =
+      'test-transfer-operator-token-000001';
+    process.env.RISK_REDIS_PREFIX = `aegis:risk:test:transfers:${process.pid}:`;
     process.env.IDENTITY_REDIS_PREFIX = `aegis:identity:test:transfers:${process.pid}:`;
     process.env.IDENTITY_PORT = String(await port());
     process.env.IDENTITY_SERVICE_URL = `http://127.0.0.1:${process.env.IDENTITY_PORT}`;
@@ -241,6 +252,8 @@ describe('Customer transfers through Gateway, Identity, Payments and Ledger (e2e
     process.env.LEDGER_SERVICE_URL = `http://127.0.0.1:${process.env.LEDGER_SERVICE_PORT}`;
     process.env.PAYMENTS_SERVICE_PORT = String(await port());
     process.env.PAYMENTS_SERVICE_URL = `http://127.0.0.1:${process.env.PAYMENTS_SERVICE_PORT}`;
+    process.env.RISK_SERVICE_PORT = String(await port());
+    process.env.RISK_SERVICE_URL = `http://127.0.0.1:${process.env.RISK_SERVICE_PORT}`;
     process.env.PAYMENTS_RECOVERY_STALE_SECONDS = '1';
     identity = start('services/identity/dist/main.js', 'services/identity');
     await waitFor(
@@ -249,6 +262,8 @@ describe('Customer transfers through Gateway, Identity, Payments and Ledger (e2e
       'Identity',
     );
     await startLedger();
+    risk = start('services/risk/dist/main.js', 'services/risk');
+    await waitFor(`${process.env.RISK_SERVICE_URL}/health/live`, risk, 'Risk');
     payments = start('services/payments/dist/main.js', 'services/payments');
     await waitFor(
       `${process.env.PAYMENTS_SERVICE_URL}/health/live`,
@@ -432,11 +447,182 @@ describe('Customer transfers through Gateway, Identity, Payments and Ledger (e2e
         .expect(200),
     );
     expect(recovered.status).toBe('COMPLETED');
+
+    for (let index = 0; index < 3; index += 1) {
+      const eventResponse = await fetch(
+        `${process.env.RISK_SERVICE_URL}/internal/v1/events`,
+        {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            'x-aegis-source-token': process.env.RISK_IDENTITY_SOURCE_TOKEN!,
+          },
+          body: JSON.stringify({
+            schemaVersion: '1.0',
+            eventId: randomUUID(),
+            source: 'IDENTITY',
+            sourceEventId: `identity:transfer-e2e:${randomUUID()}`,
+            eventType: 'LOGIN_FAILURE',
+            severity: 'MEDIUM',
+            occurredAt: new Date().toISOString(),
+            subjectId: sender.customerId,
+            correlationId: randomUUID(),
+            attributes: { outcome: 'FAILURE', operation: 'LOGIN' },
+          }),
+        },
+      );
+      expect(eventResponse.ok).toBe(true);
+    }
+    const escalation = await fetch(
+      `${process.env.RISK_SERVICE_URL}/internal/v1/assessments/evaluate`,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-aegis-internal-token': process.env.RISK_INTERNAL_TOKEN!,
+        },
+        body: JSON.stringify({
+          evaluationId: randomUUID(),
+          operation: 'TRANSFER_CONFIRMATION',
+          subjectId: sender.customerId,
+          stepUpVerified: false,
+          occurredAt: new Date().toISOString(),
+          correlationId: randomUUID(),
+        }),
+      },
+    );
+    expect(escalation.ok).toBe(true);
+    expect(await escalation.json()).toMatchObject({
+      band: 'MEDIUM',
+      decision: 'REQUIRE_STEP_UP',
+      controlRecommendation: 'REQUIRE_STEP_UP',
+    });
+    const steppedUpPreview = await preview(
+      sender,
+      senderAccount.id,
+      recipientAccount.receivingReference,
+      '1.00',
+    );
+    await expect(
+      confirm(sender, steppedUpPreview.intentToken, `transfer-${randomUUID()}`),
+    ).resolves.toMatchObject({ status: 'COMPLETED' });
+
+    const integrityResponse = await fetch(
+      `${process.env.RISK_SERVICE_URL}/internal/v1/events`,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-aegis-source-token': process.env.RISK_LEDGER_SOURCE_TOKEN!,
+        },
+        body: JSON.stringify({
+          schemaVersion: '1.0',
+          eventId: randomUUID(),
+          source: 'LEDGER',
+          sourceEventId: `ledger:transfer-e2e:${randomUUID()}`,
+          eventType: 'INTEGRITY_FAILURE',
+          severity: 'CRITICAL',
+          occurredAt: new Date().toISOString(),
+          subjectId: sender.customerId,
+          correlationId: randomUUID(),
+          attributes: { integrityCode: 'TRANSFER_E2E_ESCALATION' },
+        }),
+      },
+    );
+    expect(integrityResponse.ok).toBe(true);
+    const untrustedIngestion = await fetch(
+      `${process.env.RISK_SERVICE_URL}/internal/v1/events`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({}),
+      },
+    );
+    expect(untrustedIngestion.status).toBe(401);
+    const blockedPreview = await preview(
+      sender,
+      senderAccount.id,
+      recipientAccount.receivingReference,
+      '1.00',
+    );
+    const blockedKey = `transfer-${randomUUID()}`;
+    await confirm(sender, blockedPreview.intentToken, blockedKey, 403);
+    await confirm(sender, blockedPreview.intentToken, blockedKey, 403);
+
+    await request(server())
+      .get('/api/v1/security-ops/overview')
+      .set('cookie', sender.cookie)
+      .expect(401);
+    const operatorSignIn = await request(server())
+      .post('/api/v1/security-ops/sign-in')
+      .send({ accessToken: process.env.RISK_OPERATOR_BOOTSTRAP_TOKEN })
+      .expect(201);
+    const operatorCookies = cookies(operatorSignIn);
+    const operatorCookie = cookieHeader(operatorCookies);
+    const operatorCsrf = cookieValue(operatorCookies, 'aegis_operator_csrf');
+    const incidents = body<
+      Array<{
+        id: string;
+        status: string;
+        assessment: { subjectId: string };
+      }>
+    >(
+      await request(server())
+        .get('/api/v1/security-ops/incidents')
+        .set('cookie', operatorCookie)
+        .expect(200),
+    );
+    const openIncident = incidents.find(
+      (item) =>
+        item.status === 'OPEN' &&
+        item.assessment.subjectId === sender.customerId,
+    );
+    expect(openIncident).toBeDefined();
+    await request(server())
+      .post(`/api/v1/security-ops/incidents/${openIncident!.id}`)
+      .set('cookie', operatorCookie)
+      .send({
+        status: 'RESOLVED',
+        resolutionReason: 'This request must fail without operator CSRF.',
+      })
+      .expect(403);
+    await request(server())
+      .post(`/api/v1/security-ops/incidents/${openIncident!.id}`)
+      .set('cookie', operatorCookie)
+      .set('x-csrf-token', operatorCsrf)
+      .send({
+        status: 'RESOLVED',
+        resolutionReason: 'Verified recovery in transfer enforcement e2e.',
+      })
+      .expect(201);
+    const controls = body<
+      Array<{ id: string; status: string; scopeId: string }>
+    >(
+      await request(server())
+        .get('/api/v1/security-ops/controls')
+        .set('cookie', operatorCookie)
+        .expect(200),
+    );
+    for (const control of controls.filter(
+      (item) => item.status === 'ACTIVE' && item.scopeId === sender.customerId,
+    ))
+      await request(server())
+        .post(`/api/v1/security-ops/controls/${control.id}/release`)
+        .set('cookie', operatorCookie)
+        .set('x-csrf-token', operatorCsrf)
+        .send({ reason: 'Verified safe recovery after operator review.' })
+        .expect(201);
+    await request(server())
+      .get(`/api/v1/accounts/${senderAccount.id}/balance`)
+      .set('cookie', sender.cookie)
+      .expect(200);
   });
 
   afterAll(async () => {
     if (gateway) await gateway.close();
-    await Promise.all([identity, payments, ledger].map((child) => stop(child)));
+    await Promise.all(
+      [identity, payments, ledger, risk].map((child) => stop(child)),
+    );
     if (process.env.IDENTITY_REDIS_PREFIX && process.env.REDIS_URL) {
       const redis = createClient({ url: process.env.REDIS_URL });
       await redis.connect();

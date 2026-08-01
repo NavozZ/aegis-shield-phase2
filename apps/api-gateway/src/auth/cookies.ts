@@ -8,7 +8,7 @@ export interface InternalSessionResponse {
   session: unknown;
 }
 
-function serializeCookie(
+export function serializeCookie(
   name: string,
   value: string,
   options: { httpOnly: boolean; secure: boolean; maxAgeSeconds: number },

@@ -32,6 +32,7 @@ import { requireCsrfToken } from '../common/http/csrf';
 import type { RequestContext } from '../common/http/request-context';
 import { GATEWAY_CONFIG, type GatewayConfig } from '../config/gateway.config';
 import { PAYMENTS_ENDPOINTS, PaymentsClient } from './payments.client';
+import { RiskClient } from '../risk/risk.client';
 
 const uuid = z.uuid();
 function parse<T>(schema: z.ZodType<T>, value: unknown): T {
@@ -52,6 +53,7 @@ export class TransfersController {
     private readonly payments: PaymentsClient,
     private readonly identity: IdentityClient,
     private readonly sessions: SessionCustomerResolver,
+    private readonly risk: RiskClient,
     @Inject(GATEWAY_CONFIG) private readonly config: GatewayConfig,
   ) {}
   private cache(response: Response) {
@@ -60,12 +62,26 @@ export class TransfersController {
   private sessionId(request: RequestContext) {
     return readCookie(request.header('cookie'), this.config.sessionCookieName);
   }
-  private csrf(request: RequestContext, header?: string) {
-    return requireCsrfToken(
-      request.header('cookie'),
-      this.config.csrfCookieName,
-      header,
-    );
+  private async csrf(
+    request: RequestContext,
+    customerId: string,
+    header?: string,
+  ) {
+    try {
+      return requireCsrfToken(
+        request.header('cookie'),
+        this.config.csrfCookieName,
+        header,
+      );
+    } catch (error) {
+      await this.risk.emit(request, {
+        eventType: 'CSRF_FAILURE',
+        severity: 'MEDIUM',
+        subjectId: customerId,
+        attributes: { operation: 'TRANSFER', outcome: 'REJECTED' },
+      });
+      throw error;
+    }
   }
   @Get('policy') async policy(
     @Req() request: RequestContext,
@@ -87,16 +103,28 @@ export class TransfersController {
     @Res({ passthrough: true }) response?: Response,
   ) {
     const customerId = await this.sessions.resolve(request);
-    this.csrf(request, csrf);
+    await this.csrf(request, customerId, csrf);
     const data = parse(transferPreviewRequestSchema, body);
     if (response) this.cache(response);
-    return this.payments.request(
+    const result = await this.payments.request(
       PAYMENTS_ENDPOINTS.preview,
       'POST',
       transferPreviewResponseSchema,
       request,
       { body: { ...data, senderCustomerId: customerId } },
     );
+    await this.risk.emit(request, {
+      eventType: 'TRANSFER_PREVIEW',
+      severity: 'INFO',
+      subjectId: customerId,
+      accountId: data.sourceAccountId,
+      attributes: {
+        operation: 'TRANSFER_PREVIEW',
+        amountMinor: result.amount.minorUnits,
+        currency: result.amount.currency,
+      },
+    });
+    return result;
   }
   @Post('confirm') @HttpCode(HttpStatus.OK) async confirm(
     @Body() body: unknown,
@@ -106,7 +134,7 @@ export class TransfersController {
     @Res({ passthrough: true }) response?: Response,
   ) {
     const customerId = await this.sessions.resolve(request);
-    this.csrf(request, csrf);
+    await this.csrf(request, customerId, csrf);
     const data = parse(transferConfirmationRequestSchema, body);
     const key = z
       .string()
@@ -123,6 +151,32 @@ export class TransfersController {
         { error: { code: 'UNAUTHENTICATED' } },
         HttpStatus.UNAUTHORIZED,
       );
+    const active = await this.risk.check(request, 'TRANSFER_CONFIRMATION', [
+      { type: 'CUSTOMER', id: customerId },
+      { type: 'SESSION', id: sessionId },
+      { type: 'OPERATION', id: 'operation:transfer-confirmation' },
+    ]);
+    if (!active.allowed) {
+      await this.risk.emit(request, {
+        eventType: 'FORBIDDEN_ROUTE',
+        severity: 'HIGH',
+        subjectId: customerId,
+        sessionId,
+        attributes: {
+          operation: 'TRANSFER_CONFIRMATION',
+          outcome: 'CONTROL_BLOCKED',
+        },
+      });
+      throw new HttpException(
+        {
+          error: {
+            code: 'SECURITY_CONTROL_ACTIVE',
+            message: 'The transfer cannot be completed.',
+          },
+        },
+        HttpStatus.FORBIDDEN,
+      );
+    }
     await this.identity.request(
       IDENTITY_ENDPOINTS.transferStepUp,
       'POST',
@@ -130,6 +184,33 @@ export class TransfersController {
       { pin: data.pin },
       { sessionId },
     );
+    const assessment = await this.risk.evaluate(request, {
+      operation: 'TRANSFER_CONFIRMATION',
+      subjectId: customerId,
+      sessionId,
+      stepUpVerified: true,
+    });
+    if (!['ALLOW', 'ALLOW_WITH_MONITORING'].includes(assessment.decision)) {
+      await this.risk.emit(request, {
+        eventType: 'FORBIDDEN_ROUTE',
+        severity: assessment.band,
+        subjectId: customerId,
+        sessionId,
+        attributes: {
+          operation: 'TRANSFER_CONFIRMATION',
+          outcome: assessment.decision,
+        },
+      });
+      throw new HttpException(
+        {
+          error: {
+            code: 'SECURITY_CONTROL_ACTIVE',
+            message: 'The transfer cannot be completed.',
+          },
+        },
+        HttpStatus.FORBIDDEN,
+      );
+    }
     await this.payments.request(
       PAYMENTS_ENDPOINTS.authorize(data.intentToken),
       'POST',
@@ -150,6 +231,16 @@ export class TransfersController {
         }),
       },
     );
+    await this.risk.emit(request, {
+      eventType: 'TRANSFER_CONFIRMATION',
+      severity: assessment.band === 'LOW' ? 'INFO' : assessment.band,
+      subjectId: customerId,
+      sessionId,
+      attributes: {
+        operation: 'TRANSFER_CONFIRMATION',
+        outcome: result.status,
+      },
+    });
     if (response) {
       this.cache(response);
       response.status(

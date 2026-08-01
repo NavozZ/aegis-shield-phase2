@@ -56,6 +56,8 @@ const environment = {
   CI: process.env.CI || '',
   DEMO_AUTH_ENABLED: 'true',
   IDENTITY_REDIS_PREFIX: `aegis:identity:test:web:${process.pid}:`,
+  RISK_REDIS_PREFIX: `aegis:risk:test:web:${process.pid}:`,
+  RISK_OPERATOR_BOOTSTRAP_TOKEN: 'web-e2e-operator-token-00000001',
   WEBAUTHN_RP_ID: 'localhost',
   WEBAUTHN_ORIGIN: 'http://localhost:3000',
   NEXT_PUBLIC_API_BASE_URL: 'http://localhost:4000',
@@ -70,6 +72,15 @@ function redact(text) {
     'REDIS_PASSWORD',
     'IDENTITY_INTERNAL_TOKEN',
     'LEDGER_INTERNAL_TOKEN',
+    'PAYMENTS_INTERNAL_TOKEN',
+    'RISK_INTERNAL_TOKEN',
+    'RISK_GATEWAY_SOURCE_TOKEN',
+    'RISK_IDENTITY_SOURCE_TOKEN',
+    'RISK_PAYMENTS_SOURCE_TOKEN',
+    'RISK_LEDGER_SOURCE_TOKEN',
+    'RISK_INFRASTRUCTURE_SOURCE_TOKEN',
+    'RISK_CHANNEL_SOURCE_TOKEN',
+    'RISK_OPERATOR_BOOTSTRAP_TOKEN',
     'FIELD_ENCRYPTION_KEY',
   ]) {
     const value = environment[name];
@@ -260,11 +271,15 @@ async function cleanTestData() {
   await cleanLedgerTestData(testCustomerIds);
   const redis = createClient({ url: environment.REDIS_URL });
   await redis.connect();
-  for await (const keys of redis.scanIterator({
-    MATCH: `${environment.IDENTITY_REDIS_PREFIX}*`,
-    COUNT: 100,
-  }))
-    if (keys.length) await redis.unlink(keys);
+  for (const prefix of [
+    environment.IDENTITY_REDIS_PREFIX,
+    environment.RISK_REDIS_PREFIX,
+  ])
+    for await (const keys of redis.scanIterator({
+      MATCH: `${prefix}*`,
+      COUNT: 100,
+    }))
+      if (keys.length) await redis.unlink(keys);
   await redis.quit();
 }
 
@@ -275,7 +290,7 @@ function captureFailure(error) {
     : error;
 }
 try {
-  for (const port of [3000, 4000, 4101, 4102, 4104])
+  for (const port of [3000, 4000, 4101, 4102, 4104, 4105])
     if (await portIsOpen(port))
       throw new Error(`Required test port ${port} is already in use.`);
   process.stderr.write(`[web-e2e] preparing ${mode} stack\n`);
@@ -284,11 +299,13 @@ try {
   await runPnpm(['db:deploy:identity']);
   await runPnpm(['db:deploy:ledger']);
   await runPnpm(['db:deploy:payments']);
+  await runPnpm(['db:deploy:risk']);
   await cleanTestData();
   await runPnpm(['--filter', '@aegis/contracts', 'build']);
   await runPnpm(['--filter', '@aegis/identity-service', 'build']);
   await runPnpm(['--filter', '@aegis/ledger-service', 'build']);
   await runPnpm(['--filter', '@aegis/payments-service', 'build']);
+  await runPnpm(['--filter', '@aegis/risk-service', 'build']);
   await runPnpm(['--filter', '@aegis/api-gateway', 'build']);
   await runPnpm(['--filter', '@aegis/web', 'build'], {
     env: { ...environment, NODE_ENV: 'production' },
@@ -305,6 +322,12 @@ try {
     resolve(repositoryRoot, 'services', 'ledger'),
   );
   await waitFor('http://127.0.0.1:4102/health', ledger, 'Ledger');
+  const risk = start(
+    'Risk',
+    resolve(repositoryRoot, 'services', 'risk', 'dist', 'main.js'),
+    resolve(repositoryRoot, 'services', 'risk'),
+  );
+  await waitFor('http://127.0.0.1:4105/health/live', risk, 'Risk');
   const payments = start(
     'Payments',
     resolve(repositoryRoot, 'services', 'payments', 'dist', 'main.js'),
@@ -348,7 +371,7 @@ try {
   await runPnpm(['infra:down']).catch((error) => {
     captureFailure(error);
   });
-  for (const port of [3000, 4000, 4101, 4102, 4104])
+  for (const port of [3000, 4000, 4101, 4102, 4104, 4105])
     if (await portIsOpen(port))
       captureFailure(
         new Error(`Port ${port} remained in use after browser cleanup.`),

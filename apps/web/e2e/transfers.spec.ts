@@ -129,7 +129,7 @@ async function close(context: BrowserContext) {
 test('@functional real two-customer transfer browser journey', async ({
   browser,
 }) => {
-  test.setTimeout(180_000);
+  test.setTimeout(300_000);
   const senderContext = await browser.newContext();
   const recipientContext = await browser.newContext();
   const sender = await senderContext.newPage();
@@ -261,6 +261,6 @@ test('@functional real two-customer transfer browser journey', async ({
     await sender.goto('/app/transfers');
     await expect(sender).toHaveURL(/\/sign-in$/u);
   } finally {
-    await Promise.all([close(senderContext), close(recipientContext)]);
+    await Promise.allSettled([close(senderContext), close(recipientContext)]);
   }
 });

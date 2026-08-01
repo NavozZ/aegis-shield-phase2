@@ -28,6 +28,7 @@ import {
 import { PrismaService } from '../database/prisma.service';
 import type { TransferFailureCode } from '../generated/prisma/client';
 import { LedgerCallError, LedgerClient } from './ledger.client';
+import { PaymentsRiskClient } from './risk.client';
 
 type TransferRow = {
   id: string;
@@ -91,6 +92,7 @@ export class TransfersService {
     private readonly prisma: PrismaService,
     private readonly ledger: LedgerClient,
     @Inject(PAYMENTS_CONFIG) private readonly config: PaymentsConfig,
+    private readonly risk: PaymentsRiskClient,
   ) {}
 
   policy() {
@@ -202,6 +204,22 @@ export class TransfersService {
         amountMinor,
         sourceBalanceSnapshotMinor: BigInt(preview.sourceBalance.minorUnits),
         expiresAt,
+      },
+    });
+    await this.risk.emit({
+      eventType:
+        amountMinor >= this.config.maxTransferMinor
+          ? 'HIGH_VALUE_TRANSFER'
+          : 'TRANSFER_PREVIEW',
+      severity: amountMinor >= this.config.maxTransferMinor ? 'HIGH' : 'INFO',
+      subjectId: input.senderCustomerId,
+      accountId: preview.sourceAccountId,
+      recipientId: input.recipientReference,
+      correlationId,
+      attributes: {
+        operation: 'TRANSFER_PREVIEW',
+        amountMinor: amountMinor.toString(),
+        currency: preview.currency,
       },
     });
     return transferPreviewResponseSchema.parse({
@@ -323,12 +341,51 @@ export class TransfersService {
   ): Promise<TransferDetail> {
     const keyHash = sha256(input.idempotencyKey);
     const tokenHash = sha256(input.intentToken);
+    const preflight = await this.prisma.client.transferIntent.findFirst({
+      where: { tokenHash, senderCustomerId: input.senderCustomerId },
+    });
+    if (!preflight || !preflight.authorizedAt)
+      throw new PaymentsError('AUTHORIZATION_FAILED');
+    const requestHash = canonicalHash({
+      senderCustomerId: input.senderCustomerId,
+      intentId: preflight.id,
+      sourceAccountId: preflight.sourceAccountId,
+      recipientAccountId: preflight.recipientAccountId,
+      amountMinor: preflight.amountMinor.toString(),
+      currency: preflight.currency,
+    });
+    const existingReplay = await this.prisma.client.transfer.findUnique({
+      where: {
+        senderCustomerId_idempotencyKeyHash: {
+          senderCustomerId: input.senderCustomerId,
+          idempotencyKeyHash: keyHash,
+        },
+      },
+    });
+    if (existingReplay) {
+      if (existingReplay.requestHash !== requestHash)
+        throw new PaymentsError('IDEMPOTENCY_CONFLICT');
+      return this.asDetail(
+        existingReplay as TransferRow,
+        input.senderCustomerId,
+      );
+    }
+    await this.risk.enforce({
+      operation: 'TRANSFER_CONFIRMATION',
+      subjectId: input.senderCustomerId,
+      accountId: preflight.sourceAccountId,
+      recipientId: preflight.recipientPublicReference,
+      amountMinor: preflight.amountMinor.toString(),
+      currency: preflight.currency,
+      stepUpVerified: true,
+      correlationId,
+    });
     const prepared = await this.prisma.client.$transaction(async (tx) => {
       const intent = await tx.transferIntent.findFirst({
         where: { tokenHash, senderCustomerId: input.senderCustomerId },
       });
       if (!intent) throw new PaymentsError('INTENT_EXPIRED');
-      const requestHash = canonicalHash({
+      const transactionRequestHash = canonicalHash({
         senderCustomerId: input.senderCustomerId,
         intentId: intent.id,
         sourceAccountId: intent.sourceAccountId,
@@ -346,7 +403,7 @@ export class TransfersService {
         },
       });
       if (existing) {
-        if (existing.requestHash !== requestHash)
+        if (existing.requestHash !== transactionRequestHash)
           throw new PaymentsError('IDEMPOTENCY_CONFLICT');
         return { row: existing as TransferRow, replayed: true };
       }
@@ -387,7 +444,7 @@ export class TransfersService {
           amountMinor: intent.amountMinor,
           status: 'PROCESSING',
           idempotencyKeyHash: keyHash,
-          requestHash,
+          requestHash: transactionRequestHash,
           intentId: intent.id,
           correlationId,
           events: {

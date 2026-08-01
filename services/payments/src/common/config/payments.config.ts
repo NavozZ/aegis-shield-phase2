@@ -17,6 +17,10 @@ export interface PaymentsConfig {
   recoveryStaleSeconds: number;
   maxProcessingAttempts: number;
   idempotencyRetentionHours: number;
+  riskServiceUrl: string;
+  riskInternalToken: string;
+  riskPaymentsSourceToken: string;
+  riskTimeoutMs: number;
 }
 export const PAYMENTS_CONFIG = Symbol('PAYMENTS_CONFIG');
 
@@ -72,6 +76,15 @@ export function createPaymentsConfig(): PaymentsConfig {
       'PAYMENTS_IDEMPOTENCY_RETENTION_HOURS',
       24,
     ),
+    riskServiceUrl:
+      process.env.RISK_SERVICE_URL?.trim() || 'http://127.0.0.1:4105',
+    riskInternalToken:
+      process.env.RISK_INTERNAL_TOKEN?.trim() ||
+      'local-only-risk-internal-token-change-me',
+    riskPaymentsSourceToken:
+      process.env.RISK_PAYMENTS_SOURCE_TOKEN?.trim() ||
+      'local-only-risk-payments-source-change-me',
+    riskTimeoutMs: integer('RISK_HTTP_TIMEOUT_MS', 2_000, 100),
   };
   if (
     config.minTransferMinor > config.maxTransferMinor ||
@@ -85,8 +98,14 @@ export function createPaymentsConfig(): PaymentsConfig {
     throw new Error('LEDGER_SERVICE_URL must be HTTP or HTTPS.');
   if (
     config.nodeEnvironment === 'production' &&
-    [config.internalToken, config.ledgerInternalToken, config.databaseUrl].some(
-      (value) => /change-me|local-only|placeholder|example-only/iu.test(value),
+    [
+      config.internalToken,
+      config.ledgerInternalToken,
+      config.databaseUrl,
+      config.riskInternalToken,
+      config.riskPaymentsSourceToken,
+    ].some((value) =>
+      /change-me|local-only|placeholder|example-only/iu.test(value),
     )
   )
     throw new Error('Production Payments configuration contains placeholders.');

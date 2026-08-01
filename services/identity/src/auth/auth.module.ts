@@ -14,9 +14,10 @@ import { WebAuthnAdapter } from './passkeys/webauthn.adapter';
 import { PinService } from './pin/pin.service';
 import { SessionService } from './sessions/session.service';
 import { TransferStepUpService } from './step-up/transfer-step-up.service';
+import { SessionControlController } from './sessions/session-control.controller';
 
 @Module({
-  controllers: [AuthController],
+  controllers: [AuthController, SessionControlController],
   providers: [
     AuthEventService,
     DemoOtpProvider,

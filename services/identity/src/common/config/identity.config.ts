@@ -25,6 +25,9 @@ export interface IdentityConfig {
   fieldEncryptionKey: string;
   transferStepUpMaxAttempts: number;
   transferStepUpLockSeconds: number;
+  riskServiceUrl: string;
+  riskIdentitySourceToken: string;
+  riskTimeoutMs: number;
 }
 
 export const IDENTITY_CONFIG = Symbol('IDENTITY_CONFIG');
@@ -75,6 +78,7 @@ function validateProductionSecrets(config: IdentityConfig): void {
     ['IDENTITY_DATABASE_URL', config.databaseUrl],
     ['REDIS_URL', config.redisUrl],
     ['FIELD_ENCRYPTION_KEY', config.fieldEncryptionKey],
+    ['RISK_IDENTITY_SOURCE_TOKEN', config.riskIdentitySourceToken],
   ];
   const unsafeValues = secretSettings.filter(([, value]) =>
     /change-me|local-only|placeholder|example-only|BASE64_LOCAL_ONLY/iu.test(
@@ -128,6 +132,12 @@ export function createIdentityConfig(): IdentityConfig {
       'TRANSFER_STEP_UP_LOCK_SECONDS',
       300,
     ),
+    riskServiceUrl:
+      process.env.RISK_SERVICE_URL?.trim() || 'http://127.0.0.1:4105',
+    riskIdentitySourceToken:
+      process.env.RISK_IDENTITY_SOURCE_TOKEN?.trim() ||
+      'local-only-risk-identity-source-change-me',
+    riskTimeoutMs: integerSetting('RISK_HTTP_TIMEOUT_MS', 2_000, 100),
   };
 
   if (config.sessionAbsoluteTtlSeconds < config.sessionIdleTtlSeconds) {
