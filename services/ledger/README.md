@@ -4,6 +4,8 @@
 
 It performs no authentication of its own. The customer identifier always arrives from the API Gateway, which derives it from a validated session issued by the Identity service.
 
+Prompt 06 adds internal `GET /internal/customer-accounts/:accountId/transactions` and `GET /internal/customer-accounts/:accountId/transactions/:transactionId`. Results are derived from posted journals, use exact decimal strings, opaque filter-bound cursor pagination, and exclude ledger IDs, journal references, metadata, actors, correlations, and idempotency material.
+
 ## Runtime boundaries
 
 - Loopback development address: `http://127.0.0.1:4102`

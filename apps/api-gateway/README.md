@@ -2,6 +2,8 @@
 
 The NestJS HTTP entry point for AEGIS Shield. It owns the public HTTP, cookie and CSRF boundary and forwards only allowlisted operations to the private Identity and Ledger services. It owns no credentials, user records, sessions or banking state, and it is not a generic proxy.
 
+Customer transaction reads are `GET /api/v1/accounts/:accountId/transactions` and `GET /api/v1/accounts/:accountId/transactions/:transactionId`. The Gateway derives the customer from the session, validates queries and Ledger responses, forwards its trusted internal token and correlation ID server-side, and applies `Cache-Control: private, no-store`. No customer transaction-write route exists.
+
 Run commands from the repository root:
 
 ```powershell
