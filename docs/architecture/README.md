@@ -1,6 +1,8 @@
 # Architecture Documentation
 
-This document describes the currently implemented Prompt 05 authentication and ledger boundaries and reserves the flows that later milestones must define. Architecture changes must preserve explicit trust boundaries, data ownership, and bounded failure behavior.
+This document describes the implemented Prompt 06 authentication, immutable-ledger, dashboard, and customer transaction-history boundaries. Architecture changes must preserve explicit trust boundaries, data ownership, and bounded failure behavior.
+
+Transaction history is derived from immutable postings. The Ledger calculates each liability-account balance in `createdAt ASC, id ASC` chronology before applying display filters, then presents rows by `postedAt DESC, UUID DESC`. `effectiveAt` describes business effect and never changes posting sequence. Versioned opaque cursors are bounded and cryptographically fingerprinted to direction, category, and date filters. Ownership is included in the account query so foreign and nonexistent resources share the same 404 response.
 
 ## Current monorepo boundaries
 

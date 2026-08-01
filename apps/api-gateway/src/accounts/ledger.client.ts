@@ -11,6 +11,10 @@ export const LEDGER_ENDPOINTS = {
     `/internal/customer-accounts/${encodeURIComponent(accountId)}`,
   customerAccountBalance: (accountId: string) =>
     `/internal/customer-accounts/${encodeURIComponent(accountId)}/balance`,
+  customerTransactions: (accountId: string, query: string) =>
+    `/internal/customer-accounts/${encodeURIComponent(accountId)}/transactions${query}`,
+  customerTransaction: (accountId: string, transactionId: string) =>
+    `/internal/customer-accounts/${encodeURIComponent(accountId)}/transactions/${encodeURIComponent(transactionId)}`,
   ready: '/health/ready',
 } as const;
 

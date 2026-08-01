@@ -11,6 +11,19 @@ const accountId = '22222222-2222-4222-8222-222222222222';
 const correlationId = '33333333-3333-4333-8333-333333333333';
 const csrfToken = 'csrf-token-value';
 const idempotencyKey = 'provision-account-0123456789';
+const transactionId = '55555555-5555-4555-8555-555555555555';
+const transaction = {
+  id: transactionId,
+  displayReference: 'AEGIS-TXN-5555-5555-5555',
+  accountId,
+  direction: 'INCOMING',
+  category: 'FUNDING',
+  status: 'POSTED',
+  amount: { currency: 'LKR', minorUnits: '9007199254740993' },
+  balanceAfter: { currency: 'LKR', minorUnits: '9007199254740993' },
+  effectiveAt: '2026-08-01T10:00:00.000Z',
+  postedAt: '2026-08-01T10:00:01.000Z',
+};
 
 const config = {
   csrfCookieName: 'aegis_csrf',
@@ -90,6 +103,11 @@ function forwardedBody(call: RecordedLedgerCall | undefined): {
     throw new Error('Expected the Ledger call to carry a JSON body.');
   }
   return body;
+}
+
+function responseHeaders() {
+  const setHeader = jest.fn();
+  return { response: { setHeader } as never, setHeader };
 }
 
 describe('AccountsController authentication', () => {
@@ -327,5 +345,174 @@ describe('AccountsController ownership and failure handling', () => {
       expect.anything(),
       { customerId: sessionCustomerId },
     );
+  });
+});
+
+describe('AccountsController transaction reads', () => {
+  it.each(['history', 'detail'])(
+    'requires authentication for %s',
+    async (kind) => {
+      const resolveCustomer = jest.fn(() =>
+        Promise.reject(
+          new HttpException(
+            { error: { code: 'UNAUTHENTICATED' } },
+            HttpStatus.UNAUTHORIZED,
+          ),
+        ),
+      );
+      const { controller, ledgerRequest } = buildController({
+        resolveCustomer,
+      });
+      const { response } = responseHeaders();
+      const result =
+        kind === 'history'
+          ? controller.transactions(accountId, requestWith(), {}, response)
+          : controller.transaction(
+              accountId,
+              transactionId,
+              requestWith(),
+              response,
+            );
+      await expect(result).rejects.toMatchObject({ status: 401 });
+      expect(ledgerRequest).not.toHaveBeenCalled();
+    },
+  );
+
+  it('forwards only validated filters and the session customer', async () => {
+    const { controller, ledgerRequest } = buildController({
+      ledgerResponse: { transactions: [transaction], nextCursor: null },
+    });
+    const { response, setHeader } = responseHeaders();
+    await controller
+      .transactions(
+        accountId,
+        authenticatedRequest(),
+        {
+          direction: 'INCOMING',
+          category: 'FUNDING',
+          pageSize: '20',
+          customerId: foreignCustomerId,
+        },
+        response,
+      )
+      .catch(() => undefined);
+    expect(ledgerRequest).not.toHaveBeenCalled();
+    await controller.transactions(
+      accountId,
+      authenticatedRequest(),
+      { direction: 'INCOMING', category: 'FUNDING', pageSize: '20' },
+      response,
+    );
+    expect(ledgerRequest).toHaveBeenCalledWith(
+      `/internal/customer-accounts/${accountId}/transactions?direction=INCOMING&category=FUNDING&pageSize=20`,
+      'GET',
+      expect.anything(),
+      expect.anything(),
+      { customerId: sessionCustomerId },
+    );
+    expect(setHeader).toHaveBeenCalledWith(
+      'cache-control',
+      'private, no-store',
+    );
+  });
+
+  it.each([
+    { cursor: 'x'.repeat(1025) },
+    { pageSize: '51' },
+    {
+      dateFrom: '2026-08-02T00:00:00.000Z',
+      dateTo: '2026-08-01T00:00:00.000Z',
+    },
+  ])('rejects invalid transaction query %#', async (invalid) => {
+    const { controller, ledgerRequest } = buildController();
+    await expect(
+      controller.transactions(
+        accountId,
+        authenticatedRequest(),
+        invalid,
+        responseHeaders().response,
+      ),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(ledgerRequest).not.toHaveBeenCalled();
+  });
+
+  it('forwards transaction detail with ownership context and private caching', async () => {
+    const { controller, ledgerRequest } = buildController({
+      ledgerResponse: {
+        ...transaction,
+        maskedAccountReference: 'AEGIS-****-****-8T3W',
+        productType: 'TIER0_WALLET',
+      },
+    });
+    const { response, setHeader } = responseHeaders();
+    await controller.transaction(
+      accountId,
+      transactionId,
+      authenticatedRequest(),
+      response,
+    );
+    expect(ledgerRequest).toHaveBeenCalledWith(
+      `/internal/customer-accounts/${accountId}/transactions/${transactionId}`,
+      'GET',
+      expect.anything(),
+      expect.anything(),
+      { customerId: sessionCustomerId },
+    );
+    expect(setHeader).toHaveBeenCalledWith(
+      'cache-control',
+      'private, no-store',
+    );
+  });
+
+  it('conceals malformed account and transaction identifiers as 404', async () => {
+    const { controller, ledgerRequest } = buildController();
+    await expect(
+      controller.transaction(
+        accountId,
+        'bad-id',
+        authenticatedRequest(),
+        responseHeaders().response,
+      ),
+    ).rejects.toMatchObject({ status: 404 });
+    await expect(
+      controller.transactions(
+        'bad-id',
+        authenticatedRequest(),
+        {},
+        responseHeaders().response,
+      ),
+    ).rejects.toMatchObject({ status: 404 });
+    expect(ledgerRequest).not.toHaveBeenCalled();
+  });
+
+  it('preserves safe Ledger 404 and 503 failures', async () => {
+    const notFound = buildController({
+      ledgerError: new HttpException(
+        { error: { code: 'ACCOUNT_NOT_FOUND' } },
+        404,
+      ),
+    });
+    await expect(
+      notFound.controller.transaction(
+        accountId,
+        transactionId,
+        authenticatedRequest(),
+        responseHeaders().response,
+      ),
+    ).rejects.toMatchObject({ status: 404 });
+    const unavailable = buildController({
+      ledgerError: new HttpException(
+        { error: { code: 'LEDGER_UNAVAILABLE' } },
+        503,
+      ),
+    });
+    await expect(
+      unavailable.controller.transactions(
+        accountId,
+        authenticatedRequest(),
+        {},
+        responseHeaders().response,
+      ),
+    ).rejects.toMatchObject({ status: 503 });
   });
 });

@@ -205,6 +205,103 @@ export const customerAccountListSchema = z
   .strict();
 export type CustomerAccountList = z.infer<typeof customerAccountListSchema>;
 
+/** A customer-safe view derived exclusively from immutable ledger postings. */
+export const customerTransactionDirectionSchema = z.enum([
+  'INCOMING',
+  'OUTGOING',
+]);
+export type CustomerTransactionDirection = z.infer<
+  typeof customerTransactionDirectionSchema
+>;
+
+export const customerTransactionCategorySchema = z.enum([
+  'FUNDING',
+  'ADJUSTMENT',
+  'OTHER',
+]);
+export type CustomerTransactionCategory = z.infer<
+  typeof customerTransactionCategorySchema
+>;
+
+export const customerTransactionStatusSchema = z.literal('POSTED');
+export type CustomerTransactionStatus = z.infer<
+  typeof customerTransactionStatusSchema
+>;
+
+export const displayTransactionReferenceSchema = z
+  .string()
+  .regex(/^AEGIS-TXN-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/u);
+
+const transactionBaseSchema = z
+  .object({
+    id: z.uuid(),
+    displayReference: displayTransactionReferenceSchema,
+    accountId: z.uuid(),
+    direction: customerTransactionDirectionSchema,
+    category: customerTransactionCategorySchema,
+    status: customerTransactionStatusSchema,
+    amount: moneySchema,
+    balanceAfter: moneySchema,
+    effectiveAt: z.iso.datetime(),
+    postedAt: z.iso.datetime(),
+  })
+  .strict();
+
+export const customerTransactionSummarySchema = transactionBaseSchema;
+export type CustomerTransactionSummary = z.infer<
+  typeof customerTransactionSummarySchema
+>;
+
+export const customerTransactionDetailSchema = transactionBaseSchema
+  .extend({
+    maskedAccountReference: maskedAccountReferenceSchema,
+    productType: accountProductTypeSchema,
+  })
+  .strict();
+export type CustomerTransactionDetail = z.infer<
+  typeof customerTransactionDetailSchema
+>;
+
+export const MAX_TRANSACTION_PAGE_SIZE = 50 as const;
+export const transactionHistoryQuerySchema = z
+  .object({
+    direction: customerTransactionDirectionSchema.optional(),
+    category: customerTransactionCategorySchema.optional(),
+    dateFrom: z.iso.datetime().optional(),
+    dateTo: z.iso.datetime().optional(),
+    pageSize: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(MAX_TRANSACTION_PAGE_SIZE)
+      .default(20),
+    cursor: z.string().min(1).max(1024).optional(),
+  })
+  .strict()
+  .superRefine((value, ctx) => {
+    if (value.dateFrom && value.dateTo && value.dateFrom > value.dateTo) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'dateFrom must not be after dateTo.',
+      });
+    }
+  });
+export type TransactionHistoryQuery = z.infer<
+  typeof transactionHistoryQuerySchema
+>;
+
+export const transactionHistoryResponseSchema = z
+  .object({
+    transactions: z
+      .array(customerTransactionSummarySchema)
+      .max(MAX_TRANSACTION_PAGE_SIZE),
+    nextCursor: z.string().min(1).max(1024).nullable(),
+  })
+  .strict();
+export type TransactionHistoryResponse = z.infer<
+  typeof transactionHistoryResponseSchema
+>;
+
 /** The browser sends no body: the customer is derived from the session. */
 export const provisionDefaultAccountRequestSchema = z.object({}).strict();
 export type ProvisionDefaultAccountRequest = z.infer<

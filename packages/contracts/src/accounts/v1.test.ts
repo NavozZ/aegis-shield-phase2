@@ -17,6 +17,10 @@ import {
   publicAccountReferenceSchema,
   reconciliationResultSchema,
   signedMinorUnitsSchema,
+  customerTransactionDetailSchema,
+  customerTransactionSummarySchema,
+  transactionHistoryQuerySchema,
+  transactionHistoryResponseSchema,
 } from './v1.js';
 
 const accountId = '5b1f0f4a-6c1e-4f3a-9d2b-8e7c6a5b4d3c';
@@ -208,6 +212,86 @@ test('reconciliation results bound their issue list', () => {
         severity: 'ERROR' as const,
       })),
     }).success,
+    false,
+  );
+});
+
+test('transaction history contracts are strict, safe and BigInt-compatible', () => {
+  const transaction = {
+    id: accountId,
+    displayReference: 'AEGIS-TXN-5B1F-0F4A-6C1E',
+    accountId,
+    direction: 'INCOMING' as const,
+    category: 'FUNDING' as const,
+    status: 'POSTED' as const,
+    amount: { currency: 'LKR', minorUnits: '9007199254740993' },
+    balanceAfter: { currency: 'LKR', minorUnits: '-9007199254740993' },
+    effectiveAt: '2026-08-01T10:00:00.000Z',
+    postedAt: '2026-08-01T10:01:00.000Z',
+  };
+  assert.equal(
+    customerTransactionSummarySchema.safeParse(transaction).success,
+    true,
+  );
+  assert.equal(
+    customerTransactionSummarySchema.safeParse({
+      ...transaction,
+      reference: 'internal',
+    }).success,
+    false,
+  );
+  assert.equal(
+    customerTransactionSummarySchema.safeParse({
+      ...transaction,
+      amount: { currency: 'LKR', minorUnits: '0' },
+    }).success,
+    true,
+  );
+  assert.equal(
+    customerTransactionSummarySchema.safeParse({
+      ...transaction,
+      amount: { currency: 'LKR', minorUnits: 10 },
+    }).success,
+    false,
+  );
+  assert.equal(
+    customerTransactionDetailSchema.safeParse({
+      ...transaction,
+      maskedAccountReference: 'AEGIS-****-****-8T3W',
+      productType: 'TIER0_WALLET',
+    }).success,
+    true,
+  );
+  assert.equal(
+    transactionHistoryResponseSchema.safeParse({
+      transactions: [transaction],
+      nextCursor: null,
+    }).success,
+    true,
+  );
+  assert.equal(
+    transactionHistoryQuerySchema.safeParse({
+      direction: 'INCOMING',
+      category: 'FUNDING',
+      pageSize: 50,
+    }).success,
+    true,
+  );
+  for (const value of [0, 51, -1])
+    assert.equal(
+      transactionHistoryQuerySchema.safeParse({ pageSize: value }).success,
+      false,
+    );
+  assert.equal(
+    transactionHistoryQuerySchema.safeParse({
+      dateFrom: '2026-08-02T00:00:00.000Z',
+      dateTo: '2026-08-01T00:00:00.000Z',
+    }).success,
+    false,
+  );
+  assert.equal(
+    transactionHistoryQuerySchema.safeParse({ cursor: 'x'.repeat(1025) })
+      .success,
     false,
   );
 });

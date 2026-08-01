@@ -10,6 +10,10 @@ To be completed during implementation. Demonstrate customer authentication, toke
 
 Implemented in Prompt 05. See [accounts-ledger-demo.md](accounts-ledger-demo.md). Demonstrates idempotent Tier-0 account provisioning, a zero opening balance, ownership isolation, and a passing ledger reconciliation.
 
+## Dashboard and transaction history
+
+Implemented in Prompt 06. See [dashboard-transactions-demo.md](dashboard-transactions-demo.md).
+
 ## Protected transfer
 
 To be completed during implementation. Demonstrate an authorized idempotent transfer, balanced ledger entries, replay handling, and a consistent customer result.

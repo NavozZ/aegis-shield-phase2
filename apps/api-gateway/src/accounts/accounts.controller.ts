@@ -1,5 +1,8 @@
 import {
   accountBalanceSchema,
+  customerTransactionDetailSchema,
+  transactionHistoryQuerySchema,
+  transactionHistoryResponseSchema,
   customerAccountDetailSchema,
   customerAccountListSchema,
   idempotencyKeySchema,
@@ -20,8 +23,11 @@ import {
   Inject,
   Param,
   Post,
+  Query,
   Req,
+  Res,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { z } from 'zod';
 import { requireCsrfToken } from '../common/http/csrf';
 import type { RequestContext } from '../common/http/request-context';
@@ -153,6 +159,55 @@ export class AccountsController {
       LEDGER_ENDPOINTS.customerAccountBalance(this.accountId(accountId)),
       'GET',
       accountBalanceSchema,
+      request,
+      { customerId },
+    );
+  }
+
+  @Get(':accountId/transactions')
+  async transactions(
+    @Param('accountId') accountId: string,
+    @Req() request: RequestContext,
+    @Query() query: unknown,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const customerId = await this.sessions.resolve(request);
+    const parsed = transactionHistoryQuerySchema.safeParse(query);
+    if (!parsed.success)
+      throw invalidRequest('INVALID_REQUEST', 'The request is invalid.');
+    const search = new URLSearchParams();
+    for (const [key, value] of Object.entries(parsed.data))
+      if (value !== undefined) search.set(key, String(value));
+    response.setHeader('cache-control', 'private, no-store');
+    return this.ledger.request(
+      LEDGER_ENDPOINTS.customerTransactions(
+        this.accountId(accountId),
+        search.size ? `?${search}` : '',
+      ),
+      'GET',
+      transactionHistoryResponseSchema,
+      request,
+      { customerId },
+    );
+  }
+
+  @Get(':accountId/transactions/:transactionId')
+  async transaction(
+    @Param('accountId') accountId: string,
+    @Param('transactionId') transactionId: string,
+    @Req() request: RequestContext,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const customerId = await this.sessions.resolve(request);
+    const parsedTransactionId = this.accountId(transactionId);
+    response.setHeader('cache-control', 'private, no-store');
+    return this.ledger.request(
+      LEDGER_ENDPOINTS.customerTransaction(
+        this.accountId(accountId),
+        parsedTransactionId,
+      ),
+      'GET',
+      customerTransactionDetailSchema,
       request,
       { customerId },
     );

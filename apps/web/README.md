@@ -1,6 +1,8 @@
 # AEGIS Shield Web
 
-The customer-facing Next.js application for AEGIS Shield. It implements responsive English, Sinhala, and Tamil onboarding, passkey-first sign-in, PIN/OTP fallback, protected session-aware routes, and a minimal authenticated account summary. Transfers, payments and transaction history remain deferred.
+The customer-facing Next.js application implements responsive English, Sinhala, and Tamil onboarding, passkey-first sign-in, protected routes, account balances, recent activity, filterable transaction history, additive load-more pagination, and safe printable prototype records. Transfers and payments remain deferred.
+
+Financial responses are fetched with `no-store` and are never persisted in browser storage. The printable record hides navigation and controls, renders in black and white, and contains only customer-safe fields.
 
 Run commands from the repository root:
 

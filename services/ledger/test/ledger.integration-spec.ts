@@ -8,6 +8,7 @@ import { PrismaService } from '../src/database/prisma.service';
 import { IdempotencyService } from '../src/idempotency/idempotency.service';
 import { JournalService } from '../src/ledger/journal.service';
 import { ReconciliationService } from '../src/reconciliation/reconciliation.service';
+import { TransactionService } from '../src/transactions/transaction.service';
 
 /**
  * Infrastructure-dependent tests. They require the PostgreSQL ledger database
@@ -21,6 +22,7 @@ describe('ledger integration', () => {
   let accounts: AccountService;
   let journals: JournalService;
   let reconciliation: ReconciliationService;
+  let transactions: TransactionService;
   let settlementAccountId: string;
 
   const customerId = randomUUID();
@@ -111,6 +113,7 @@ describe('ledger integration', () => {
     accounts = new AccountService(prisma, idempotency);
     journals = new JournalService(prisma, idempotency, config);
     reconciliation = new ReconciliationService(prisma);
+    transactions = new TransactionService(prisma);
 
     const [settlement] = await prisma.client.$queryRaw<Array<{ id: string }>>`
       SELECT "id" FROM "app"."ledger_accounts"
@@ -421,6 +424,156 @@ describe('ledger integration', () => {
           { type: 'SERVICE', id: 'integration-test' },
         ),
       ).rejects.toMatchObject({ code: 'CURRENCY_MISMATCH' });
+    });
+  });
+
+  describe('customer transaction history', () => {
+    it('returns the funded wallet posting with an authoritative balance', async () => {
+      const result = await transactions.list(customerId, walletAccountId, {
+        pageSize: 20,
+      });
+      expect(result.transactions).toHaveLength(1);
+      expect(result.transactions[0]).toMatchObject({
+        direction: 'INCOMING',
+        category: 'FUNDING',
+        amount: { minorUnits: '100000' },
+        balanceAfter: { minorUnits: '100000' },
+      });
+      expect(JSON.stringify(result)).not.toContain(walletLedgerAccountId);
+    });
+
+    it('derives outgoing history and preserves exact large balances', async () => {
+      await debitWallet('25000', `debit-${runId}-history`);
+      await fundWallet('9007199254740993', `fund-${runId}-huge`);
+      const result = await transactions.list(customerId, walletAccountId, {
+        pageSize: 20,
+      });
+      expect(result.transactions[0]).toMatchObject({
+        direction: 'INCOMING',
+        amount: { minorUnits: '9007199254740993' },
+        balanceAfter: { minorUnits: '9007199254815993' },
+      });
+      expect(result.transactions[1]).toMatchObject({
+        direction: 'OUTGOING',
+        category: 'ADJUSTMENT',
+        balanceAfter: { minorUnits: '75000' },
+      });
+    });
+
+    it('filters direction, category and dates without changing balanceAfter', async () => {
+      const all = await transactions.list(customerId, walletAccountId, {
+        pageSize: 20,
+      });
+      const outgoing = await transactions.list(customerId, walletAccountId, {
+        pageSize: 20,
+        direction: 'OUTGOING',
+        category: 'ADJUSTMENT',
+      });
+      expect(outgoing.transactions).toHaveLength(1);
+      expect(outgoing.transactions[0]?.balanceAfter).toEqual(
+        all.transactions.find(
+          (item) => item.id === outgoing.transactions[0]?.id,
+        )?.balanceAfter,
+      );
+      const dateFiltered = await transactions.list(
+        customerId,
+        walletAccountId,
+        {
+          pageSize: 20,
+          dateFrom: '2026-01-01T00:00:00.000Z',
+          dateTo: '2027-01-01T00:00:00.000Z',
+        },
+      );
+      expect(dateFiltered.transactions.length).toBeGreaterThanOrEqual(3);
+    });
+
+    it('paginates without duplicates or skipped postings', async () => {
+      await fundWallet('1', `fund-${runId}-page-a`);
+      await fundWallet('1', `fund-${runId}-page-b`);
+      const all = await transactions.list(customerId, walletAccountId, {
+        pageSize: 20,
+      });
+      const first = await transactions.list(customerId, walletAccountId, {
+        pageSize: 2,
+      });
+      const second = await transactions.list(customerId, walletAccountId, {
+        pageSize: 2,
+        cursor: first.nextCursor!,
+      });
+      const third = await transactions.list(customerId, walletAccountId, {
+        pageSize: 2,
+        cursor: second.nextCursor!,
+      });
+      const paged = [
+        ...first.transactions,
+        ...second.transactions,
+        ...third.transactions,
+      ];
+      expect(paged.map((item) => item.id)).toEqual(
+        all.transactions.map((item) => item.id),
+      );
+      expect(new Set(paged.map((item) => item.id)).size).toBe(paged.length);
+      expect(third.nextCursor).toBeNull();
+    });
+
+    it('rejects malformed and filter-mismatched cursors', async () => {
+      await expect(
+        transactions.list(customerId, walletAccountId, {
+          pageSize: 2,
+          cursor: 'malformed',
+        }),
+      ).rejects.toThrow('Invalid transaction history cursor');
+      const first = await transactions.list(customerId, walletAccountId, {
+        pageSize: 2,
+      });
+      await expect(
+        transactions.list(customerId, walletAccountId, {
+          pageSize: 2,
+          direction: 'OUTGOING',
+          cursor: first.nextCursor!,
+        }),
+      ).rejects.toThrow('Invalid transaction history cursor');
+    });
+
+    it('enforces account and transaction ownership with the same 404', async () => {
+      const owned = await transactions.list(customerId, walletAccountId, {
+        pageSize: 20,
+      });
+      const transactionId = owned.transactions[0]!.id;
+      await expect(
+        transactions.list(randomUUID(), walletAccountId, { pageSize: 20 }),
+      ).rejects.toMatchObject({ code: 'ACCOUNT_NOT_FOUND', status: 404 });
+      await expect(
+        transactions.detail(randomUUID(), walletAccountId, transactionId),
+      ).rejects.toMatchObject({ code: 'ACCOUNT_NOT_FOUND', status: 404 });
+      await expect(
+        transactions.detail(customerId, walletAccountId, randomUUID()),
+      ).rejects.toMatchObject({ code: 'ACCOUNT_NOT_FOUND', status: 404 });
+      await expect(
+        transactions.detail(customerId, randomUUID(), transactionId),
+      ).rejects.toMatchObject({ code: 'ACCOUNT_NOT_FOUND', status: 404 });
+    });
+
+    it('returns a customer-safe transaction detail', async () => {
+      const history = await transactions.list(customerId, walletAccountId, {
+        pageSize: 20,
+      });
+      const detail = await transactions.detail(
+        customerId,
+        walletAccountId,
+        history.transactions[0]!.id,
+      );
+      expect(detail.maskedAccountReference).toMatch(
+        /^AEGIS-\*{4}-\*{4}-[A-Z0-9]{4}$/u,
+      );
+      for (const forbidden of [
+        'ledgerAccountId',
+        'reference',
+        'metadata',
+        'createdBy',
+        'correlationId',
+      ])
+        expect(detail).not.toHaveProperty(forbidden);
     });
   });
 

@@ -1,7 +1,9 @@
 import Link from 'next/link';
 import { AccountPanel } from '@/components/accounts/account-panel';
+import { RecentActivity } from '@/components/accounts/recent-activity';
 import { EmptyFeatureCard, SessionCard } from '@/components/ui/session-card';
 import { getServerAccount } from '@/lib/accounts/server-accounts';
+import { getServerTransactions } from '@/lib/accounts/server-transactions';
 import { getServerSession } from '@/lib/auth/server-session';
 import { getServerDictionary } from '@/lib/i18n/server';
 
@@ -12,6 +14,10 @@ export default async function WorkspacePage() {
   ]);
   if (state.status !== 'authenticated') return null;
   const accountState = await getServerAccount();
+  const recent =
+    accountState.status === 'ready' && accountState.account
+      ? await getServerTransactions(accountState.account.id, '?pageSize=5')
+      : undefined;
   const cards = [
     [dictionary.transfersCard, dictionary.comingLater],
     [dictionary.qrCard, dictionary.comingLater],
@@ -35,6 +41,15 @@ export default async function WorkspacePage() {
         }
         unavailable={accountState.status === 'unavailable'}
       />
+      {accountState.status === 'ready' && accountState.account ? (
+        <RecentActivity
+          accountId={accountState.account.id}
+          transactions={
+            recent?.status === 'ready' ? recent.value.transactions : []
+          }
+          unavailable={recent !== undefined && recent.status !== 'ready'}
+        />
+      ) : null}
       <section aria-labelledby="session-heading">
         <h2 id="session-heading">{dictionary.sessionStatus}</h2>
         <SessionCard session={state.session} dictionary={dictionary} />

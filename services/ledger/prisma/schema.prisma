@@ -145,7 +145,7 @@ model JournalPosting {
   ledgerAccount   LedgerAccount    @relation(fields: [ledgerAccountId], references: [id], onDelete: Restrict)
 
   @@unique([journalEntryId, sequence])
-  @@index([ledgerAccountId, createdAt])
+  @@index([ledgerAccountId, createdAt, id])
   @@map("journal_postings")
 }
 

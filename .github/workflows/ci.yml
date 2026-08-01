@@ -106,23 +106,23 @@ jobs:
         run: pnpm --filter @aegis/contracts test
       - name: Test Identity service
         run: pnpm --filter @aegis/identity-service test
-      - name: Test Ledger service units
+      - name: Test Ledger units including transaction history
         run: pnpm ledger:test
-      - name: Test Ledger integration, immutability and concurrency
-        run: pnpm ledger:test:integration
+      - name: Test Ledger PostgreSQL transaction history, immutability and reconciliation
+        run: pnpm transactions:test:integration
       - name: Test API Gateway
         run: pnpm --filter @aegis/api-gateway test
       - name: Test authentication end to end
         run: pnpm auth:test:e2e
-      - name: Test Ledger and Gateway accounts end to end
-        run: pnpm ledger:test:e2e
-      - name: Test web unit and components
+      - name: Test authenticated account and transaction routes end to end
+        run: pnpm transactions:test:e2e
+      - name: Test web units including dashboard and transaction components
         run: pnpm web:test
       - name: Install Playwright Chromium
         run: pnpm --filter @aegis/web exec playwright install --with-deps chromium
-      - name: Test browser authentication and account journeys
+      - name: Test browser authentication, account and transaction journeys
         run: pnpm web:test:e2e
-      - name: Test browser accessibility
+      - name: Test browser accessibility including transaction surfaces
         run: pnpm web:test:a11y
       # The browser harness stops infrastructure as part of its own cleanup, so
       # reconciliation restarts it. Named volumes persist, so the ledger written
