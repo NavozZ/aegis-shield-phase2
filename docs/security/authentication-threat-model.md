@@ -1,6 +1,6 @@
 # Authentication threat model
 
-This model covers Prompt 04’s browser and backend authentication path. All evidence uses synthetic identities. Browser passkey evidence uses a Chromium virtual authenticator; production authenticator and delivery-channel assurance remain outside this prototype.
+This model covers the browser and backend authentication path. All evidence uses synthetic identities. Browser passkey evidence uses a Chromium virtual authenticator; production authenticator and delivery-channel assurance remain outside this prototype.
 
 | Threat                    | Asset and attack                                           | Mitigation                                                                                | Residual risk                                                               | Test or evidence                                       |
 | ------------------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- | ------------------------------------------------------ |

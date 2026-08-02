@@ -29,7 +29,7 @@ the very next call with no restart.
 
 ### Risk unavailable
 
-Sensitive transfers fail closed — this is existing behaviour from Prompt 10 and
+Sensitive transfers fail closed — this is the established threat-detection behaviour and
 is unchanged. Telemetry is fail-open.
 
 For the recovery console specifically, Risk is the operator session authority, so

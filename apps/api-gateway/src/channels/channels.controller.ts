@@ -235,9 +235,12 @@ export class ChannelsController {
     @Headers('x-csrf-token') csrf?: string,
     @Res({ passthrough: true }) response?: Response,
   ) {
-    const agentId = await this.sessions.resolve(request); // Resolve agent ID from session
-    // Wait, the agent session returns the agent ID (which is technically just a customerId for an agent).
-    // In our simplified logic, session resolver returns the customer ID (or agent ID).
+    // KNOWN DEFECT: this is an ordinary customer session identifier, not an
+    // authenticated agent identity, and no agent role is checked. Any signed-in
+    // customer can therefore reach agent cash operations. Recorded as release
+    // blocker B-6 in docs/release/final-security-review.md and deliberately not
+    // fixed in this release.
+    const agentId = await this.sessions.resolve(request);
     this.csrf(request, csrf);
     const data = parse(agentCashInPreviewRequestSchema, body);
 

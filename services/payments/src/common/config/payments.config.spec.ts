@@ -3,7 +3,7 @@ import { createPaymentsConfig } from './payments.config';
 /*
  * Startup configuration must fail loudly and safely.
  *
- * The Prompt 08 channels added required secrets (`PAYMENTS_QR_SIGNING_KEY`,
+ * The inclusive channels added required secrets (`PAYMENTS_QR_SIGNING_KEY`,
  * and Redis settings the channels depend on). A service that silently invented
  * a default for a signing key would produce QR codes anyone could forge, so the
  * absence of a fallback is itself the security property under test here.
@@ -37,8 +37,8 @@ const COMPLETE: Record<string, string> = {
  * A complete set of production-shaped secrets.
  *
  * Every value the production placeholder check inspects must be here, across
- * all three phases: the Payments and Ledger tokens, the Prompt 08 QR signing
- * key and the Prompt 10 Risk tokens. Omitting one lets it fall back to its
+ * all three groups: the Payments and Ledger tokens, the channel QR signing
+ * key and the Risk tokens. Omitting one lets it fall back to its
  * `local-only-…` default, which the check correctly rejects.
  */
 const PRODUCTION_SECRETS: Record<string, string> = {

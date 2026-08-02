@@ -4,6 +4,14 @@ The customer-facing Next.js application implements responsive English, Sinhala, 
 
 Financial responses are fetched with `no-store` and are never persisted in browser storage. The printable record hides navigation and controls, renders in black and white, and contains only customer-safe fields.
 
+## Next.js version note
+
+This application targets a Next.js major version with breaking changes to APIs,
+conventions and file structure. Consult the bundled guides under
+`node_modules/next/dist/docs/` for the version actually installed, and heed the
+deprecation notices there, rather than relying on documentation for an earlier
+release.
+
 Run commands from the repository root:
 
 ```powershell

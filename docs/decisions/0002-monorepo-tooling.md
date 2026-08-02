@@ -6,7 +6,7 @@
 
 ## Context
 
-AEGIS Shield Phase 2 needs multiple independently deployable applications and future services while retaining one reproducible demonstration, one dependency review surface, and atomic cross-boundary contract changes. Prompt 01 must establish the development platform without introducing banking logic or infrastructure that belongs to later milestones.
+AEGIS Shield Phase 2 needs multiple independently deployable applications and future services while retaining one reproducible demonstration, one dependency review surface, and atomic cross-boundary contract changes. The development platform must be established without introducing banking logic or infrastructure that belongs to later milestones.
 
 ## Decision
 

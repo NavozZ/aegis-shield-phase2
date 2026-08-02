@@ -111,7 +111,7 @@ a discovery made during judging.
 - [ ] [SUBMISSION_CHECKLIST.md](./SUBMISSION_CHECKLIST.md) — this document.
 - [ ] [FINAL_VALIDATION_REPORT.md](./FINAL_VALIDATION_REPORT.md) — what ran,
       where it ran, and the result, using the status labels above.
-- [ ] [RELEASE_NOTES.md](./RELEASE_NOTES.md) — what shipped across prompts 00-11.
+- [ ] [RELEASE_NOTES.md](./RELEASE_NOTES.md) — what shipped across the Phase 2 implementation.
 - [ ] [final-capability-audit.md](./final-capability-audit.md) — capability by
       capability, with the evidence for each.
 - [ ] [final-security-review.md](./final-security-review.md) — the security
@@ -212,7 +212,7 @@ a discovery made during judging.
 - [ ] No document contains a placeholder marker. The CI job fails the release
       documents if one appears.
 - [ ] No document says a shipped capability is still coming. QR, USSD and agent
-      cash shipped in prompt 08; SABCL in 09; threat detection in 10; encrypted
+      cash, SABCL secure routing, threat detection, and encrypted
       backup, isolated restore verification and recovery drills in 11.
 - [ ] Every document that lists the stack lists all of it — five databases, and
       ports 3000, 4000, 4101, 4102, 4103, 4104, 4105 and 4106.

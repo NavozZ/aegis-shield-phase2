@@ -51,7 +51,6 @@ Expected observations:
 - A masked account reference in the form `AEGIS-****-****-XXXX`
 - Account product **Tier-0 wallet**, status **Active**, currency **LKR**
 - Current balance exactly **LKR 0.00**
-- The note _Transaction history comes in Prompt 06._
 - The create button is gone; the interface offers no second account
 
 The account starts at zero. No opening journal entry is written and no funds are invented.
@@ -104,7 +103,7 @@ Named volumes are preserved. Do not run `pnpm infra:reset` unless you intend to 
 - Transfers between customers and to external banks
 - QR payments, USSD and agent cash
 - Cards, loans, interest, fees and foreign exchange
-- Transaction history (Prompt 06)
+- Transaction history
 - SABCL, threat detection and disaster recovery
 
 Only account creation and reads exist. There is no browser route that posts a journal entry; ledger movements are a trusted service-to-service operation.

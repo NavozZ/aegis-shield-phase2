@@ -278,12 +278,12 @@ The operator interface is English. Customer journeys remain EN/SI/TA.
 
 ## Security demonstration
 
-Implemented in Prompt 10. Full walkthrough:
+Full walkthrough:
 [docs/demo/risk-controls-demo.md](docs/demo/risk-controls-demo.md).
 
 ## SABCL demonstration
 
-Implemented in Prompt 09. Full walkthrough:
+Full walkthrough:
 [docs/demo/sabcl-routing-demo.md](docs/demo/sabcl-routing-demo.md).
 
 ### Setting it up locally
@@ -338,7 +338,7 @@ internal layer between known services, not an anonymity network. See
 
 ## Recovery demonstration
 
-Implemented in Prompt 11. Full walkthrough:
+Full walkthrough:
 [docs/demo/disaster-recovery-demo.md](docs/demo/disaster-recovery-demo.md).
 
 Generate a local backup key and put it in `.env` as `DR_BACKUP_ENCRYPTION_KEY`

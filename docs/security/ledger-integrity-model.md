@@ -1,6 +1,6 @@
 # Ledger integrity model
 
-This document explains how AEGIS Shield guarantees that a customer balance always follows from an immutable, balanced record. It covers Prompt 05: accounts, journals, postings, balances and reconciliation. Transfers and payments are deferred.
+This document explains how AEGIS Shield guarantees that a customer balance always follows from an immutable, balanced record. It covers accounts, journals, postings, balances and reconciliation.
 
 ## Debit and credit rules
 

@@ -1,6 +1,6 @@
 # Local data and messaging infrastructure
 
-Prompt 02 provides reproducible local PostgreSQL and Redis services through Docker Compose. The services are development dependencies only: no application connects to either container yet.
+Reproducible local PostgreSQL and Redis services are provided through Docker Compose. The services are development dependencies only.
 
 ## Architecture overview
 

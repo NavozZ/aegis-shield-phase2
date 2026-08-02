@@ -1,6 +1,6 @@
 # Customer fund transfer model
 
-Prompt 07 introduces internal LKR customer-to-customer transfers. It is a
+Internal LKR customer-to-customer transfers are in scope here. It is a
 synthetic prototype only: no external bank rail, card processor, merchant
 payment, or real customer funds are connected.
 

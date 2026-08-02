@@ -1,7 +1,7 @@
 # AEGIS Shield — Release Notes
 
 AEGIS Shield is a zero-trust, resilient and inclusive digital banking **prototype**
-built for Duothan 6.0 Phase 2. This release closes the sequence of prompts 00 to
+built for Duothan 6.0 Phase 2. This release closes the Phase 2 implementation, spanning
 12: the platform is feature-complete against the scope it set for itself, every
 capability is owned by an independently runnable service, and the whole surface —
 commands, ports, links and release documents — is now checked by an automated
@@ -49,7 +49,7 @@ service reads another service's tables.
 
 ## What changed in the final release
 
-Prompt 12 added no new banking capability. It closed the gap between a platform
+The final release added no new banking capability. It closed the gap between a platform
 that works when the person driving it already knows how, and a platform a
 stranger can start, verify, reconcile and audit. Seven changes, each of which
 exists because the previous state had a specific failure mode.

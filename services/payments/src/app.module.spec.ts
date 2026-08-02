@@ -53,8 +53,8 @@ const TEST_ENVIRONMENT: Record<string, string> = {
   REDIS_URL: 'redis://127.0.0.1:6379/0',
   PAYMENTS_REDIS_PREFIX: 'aegis:payments:test:app-module:',
   // SABCL off is the default posture: the recipient is registered but not
-  // wired in. What matters for this suite is that the Prompt 09 module can sit
-  // in the same graph as the Prompt 08 channels without either breaking the
+  // wired in. What matters for this suite is that the SABCL module can sit
+  // in the same graph as the inclusive channels without either breaking the
   // other. The SABCL package has its own suites for strict and compatible mode.
   SABCL_MODE: 'off',
 };
@@ -98,7 +98,7 @@ describe('Payments AppModule', () => {
     await moduleRef.close();
   });
 
-  it('registers the Prompt 08 channels and the Prompt 09 SABCL recipient together', async () => {
+  it('registers the inclusive channels and the SABCL recipient together', async () => {
     // The integration assertion: both phases occupy the same provider graph.
     // Either one failing to construct takes down the whole Payments service,
     // which is how the earlier UssdModule defect broke transfers.
@@ -168,7 +168,7 @@ describe('Payments AppModule', () => {
     await moduleRef.close();
   });
 
-  it('starts the Prompt 07 transfer graph even though the Prompt 08 channels are registered', async () => {
+  it('starts the transfer graph even though the inclusive channels are registered', async () => {
     // The transfer end-to-end suite exercises transfers only, but it starts the
     // whole Payments service. A channel module that cannot be constructed
     // therefore breaks transfers, which is exactly how this failure presented.
