@@ -95,3 +95,6 @@ secrets/
 .dr-backups/
 *.dump
 *.dump.enc
+
+# Demonstration evidence. Screenshots await manual review and are never committed.
+.evidence/
