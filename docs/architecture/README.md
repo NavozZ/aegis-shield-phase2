@@ -1,6 +1,12 @@
 # Architecture Documentation
 
-This document describes the implemented Prompt 06 authentication, immutable-ledger, dashboard, and customer transaction-history boundaries. Architecture changes must preserve explicit trust boundaries, data ownership, and bounded failure behavior.
+This document describes the implemented boundaries of the completed platform:
+authentication, the immutable ledger, dashboard and transaction history, secure
+transfers, inclusive payment channels, SABCL metadata-protected routing,
+deterministic threat detection with scoped controls, and operational resilience
+with encrypted backup and disaster-recovery drills. Architecture changes must
+preserve explicit trust boundaries, data ownership, and bounded failure
+behaviour.
 
 Transaction history is derived from immutable postings. The Ledger calculates each liability-account balance in `createdAt ASC, id ASC` chronology before applying display filters, then presents rows by `postedAt DESC, UUID DESC`. `effectiveAt` describes business effect and never changes posting sequence. Versioned opaque cursors are bounded and cryptographically fingerprinted to direction, category, and date filters. Ownership is included in the account query so foreign and nonexistent resources share the same 404 response.
 
@@ -8,13 +14,32 @@ Transaction history is derived from immutable postings. The Ledger calculates ea
 
 ```text
 apps/       Independently runnable user-facing and gateway applications
-services/   Independently deployable services; Identity and Ledger are implemented
-packages/   Shared versioned contracts; authentication and accounts v1 are implemented
+services/   Six independently deployable services, all implemented
+packages/   Shared versioned contracts and the SABCL protocol package
 infra/      Local data orchestration, stack process management, and checks
-docs/       Architecture, decisions, and demonstration procedures
+docs/       Architecture, decisions, security, operations and demonstrations
 ```
 
 pnpm provides one workspace and root lockfile. Turborepo coordinates tasks without changing application ownership.
+
+## Implemented stack and ports
+
+| Component    | Port | Owns                                                     |
+| ------------ | ---- | -------------------------------------------------------- |
+| Web          | 3000 | Multilingual customer UI and the operator consoles       |
+| API Gateway  | 4000 | The only public HTTP surface; cookies, CSRF, rate limits |
+| Identity     | 4101 | Users, OTP, PIN, passkeys, sessions                      |
+| Ledger       | 4102 | Accounts, immutable journals, balances                   |
+| SABCL router | 4103 | Blind routing of encrypted envelopes it cannot read      |
+| Payments     | 4104 | Transfers, QR, USSD, agent cash, idempotency             |
+| Risk         | 4105 | Security events, assessments, controls, incidents        |
+| Resilience   | 4106 | Recovery drill evidence and backup-set registry          |
+| PostgreSQL   | 5432 | Five service databases, one least-privilege role each    |
+| Redis        | 6379 | Sessions, challenges, velocity and replay state          |
+
+Every service except the Gateway and the Web application is bound to loopback and
+carries no browser CORS. The SABCL router starts only when `SABCL_MODE` is not
+`off`.
 
 ## Web application responsibility
 
@@ -112,7 +137,7 @@ Every monetary amount is an integer count of minor units: `BIGINT` in PostgreSQL
 
 ## Local data and messaging boundaries
 
-PostgreSQL provides five logically isolated prototype databases. Identity and the Ledger now use their own service databases and roles, while Redis stores bounded authentication state for:
+PostgreSQL provides five logically isolated prototype databases — identity, ledger, payments, audit (owned by Risk) and resilience — each with its own least-privilege login role. Redis stores bounded, recreatable state for:
 
 - sessions
 - OTP and passkey challenges

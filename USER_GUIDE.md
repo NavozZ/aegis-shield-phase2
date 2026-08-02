@@ -1,6 +1,10 @@
 # AEGIS Shield Phase 2 User Guide
 
-This guide explains how to run and demonstrate Prompt 07 onboarding, secure sign-in, Tier-0 accounts, transaction history, and synthetic internal customer transfers. No external rail or real funds are connected.
+This guide explains how to run and demonstrate the completed Phase 2 platform: onboarding, secure sign-in, Tier-0 accounts, transaction history, synthetic internal customer transfers, the QR Pay, USSD and agent-cash channels, SABCL encrypted service routing, threat detection with scoped controls, and operational resilience with encrypted backup, restore verification and recovery drills. No external rail or real funds are connected.
+
+> Before demonstrating the USSD or agent-cash channels, read the
+> [release blockers](docs/release/final-security-review.md#release-blockers).
+> Six confirmed defects in those two channels are documented and not fixed.
 
 ## Introduction
 
@@ -12,7 +16,7 @@ AEGIS Shield is a Duothan 6.0 hackathon prototype for resilient and inclusive ze
 - Node.js `>=22.12`; Node.js 22 is selected by `.nvmrc`
 - pnpm `11.8.0`
 - Docker Desktop or Docker Engine with Docker Compose v2
-- Available local TCP ports 3000, 4000, 4101, 4102, 4104, 5432, and 6379
+- Available local TCP ports 3000, 4000, 4101, 4102, 4103, 4104, 4105, 4106, 5432, and 6379
 
 Confirm the toolchain:
 
@@ -68,7 +72,7 @@ pnpm infra:check
 pnpm dev:full
 ```
 
-This verifies infrastructure, deploys committed Identity migrations, and then starts all workspaces. It leaves Docker infrastructure running when `Ctrl+C` stops applications. Normal `pnpm dev` never alters databases.
+This verifies infrastructure, deploys the committed Identity, Ledger, Payments, Risk and Resilience migrations, and then starts all workspaces. It leaves Docker infrastructure running when `Ctrl+C` stops applications. Normal `pnpm dev` never alters databases.
 
 For a local demonstration, keep `DEMO_AUTH_ENABLED=true`. This causes the API to return a one-time demonstration OTP to the browser. It is rejected in production mode and must never be treated as an OTP delivery design.
 
@@ -93,6 +97,45 @@ pnpm infra:reset -- --yes
 ```
 
 PostgreSQL initialization scripts run only when the named volume is first created. Changing `.env` database credentials does not alter an existing volume.
+
+## One-command startup
+
+The fastest route from a fresh clone to a running demonstration:
+
+```powershell
+pnpm install --frozen-lockfile
+pnpm env:init:local
+pnpm env:check
+pnpm build
+pnpm demo:start
+```
+
+`env:init:local` writes `.env` from `.env.example` with cryptographically random
+local passwords and tokens, including a valid backup encryption key. It refuses
+to overwrite an existing `.env` unless you confirm with
+`pnpm env:init:local -- --force`. No value is ever printed, and `.env` is
+git-ignored.
+
+`env:check` validates the result. It reports variable names and what is wrong
+with them and never displays a value, so it is safe to run with someone looking
+over your shoulder.
+
+`demo:start` validates the environment, confirms the Docker engine, starts
+PostgreSQL and Redis, applies all five committed migration sets, then brings each
+service up in dependency order, waiting on its readiness endpoint. Ctrl+C stops
+everything cleanly and preserves your local data.
+
+Once it is running:
+
+```powershell
+pnpm demo:status             # what is listening
+pnpm demo:verify             # liveness, readiness and response-shape checks
+pnpm demo:stop               # stop containers, keep data
+pnpm demo:reset -- --yes     # destroy local volumes, on explicit confirmation
+```
+
+Complete walkthrough with a presentation script:
+[docs/release/FINAL_DEMO_GUIDE.md](docs/release/FINAL_DEMO_GUIDE.md).
 
 ## Starting the platform
 
@@ -186,7 +229,7 @@ The **Accounts and balances** panel on `/app` first shows **No account created y
 
 Select **Create Tier-0 account**. The request carries a generated idempotency key and the CSRF header, and the button is disabled while it is in flight, so a double click cannot create a second account. On success the panel shows the masked account reference, the account product, status, currency, and a balance of exactly `LKR 0.00`.
 
-A new account is opened with a zero balance. No opening entry is written and no funds are invented. Repeating the request returns the same account rather than creating another. Transaction history arrives in Prompt 06.
+A new account is opened with a zero balance. No opening entry is written and no funds are invented. Repeating the request returns the same account rather than creating another. Transaction history for the account is available from the account detail view once postings exist.
 
 Full account references and internal ledger identifiers are never shown; only a masked reference such as `AEGIS-****-****-8T3W` is displayed.
 
@@ -216,7 +259,7 @@ See the [repeatable transfer demo](docs/demo/customer-transfer-demo.md).
 
 Protected routes verify the session with the Gateway before rendering. Expired or revoked sessions redirect to `/sign-in`; an unavailable dependency shows a retryable service-unavailable screen. Select **Log out** to revoke the server session, clear authentication cookies, replace browser history, and return to sign-in.
 
-External/QR payments, USSD, and agent-assisted journeys remain deferred.
+QR Pay, USSD and agent-assisted journeys are implemented under `/app/channels/qr`, `/app/channels/ussd` and `/app/channels/agent`, and are covered by `pnpm channels:test`. The USSD and agent-cash channels carry documented release blockers and must not be demonstrated as working; see [docs/release/final-security-review.md](docs/release/final-security-review.md#release-blockers).
 
 ## Administrator journey
 
@@ -307,10 +350,25 @@ node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"
 
 ```powershell
 pnpm dr:backup                  # encrypted set of all five databases
-pnpm dr:backup:verify           # checksums and authenticity, no restore
-pnpm dr:backup:verify:negative  # prove the tamper and wrong-key refusals
-pnpm dr:restore:verify          # isolated restore into disposable databases
-pnpm dr:drill                   # the full deterministic drill
+```
+
+`dr:backup` prints the backup set identifier and the exact next commands. Every
+later command names the set explicitly — a bare verify or restore fails rather
+than guessing which set to examine:
+
+```powershell
+pnpm dr:backup:verify -- --set <backup-set-id>
+pnpm dr:backup:verify:negative -- --set <backup-set-id>
+pnpm dr:restore:verify -- --set <backup-set-id>
+pnpm dr:drill
+```
+
+`--latest` is available when you mean it. It chooses by the manifest's creation
+time, never by directory name, and refuses rather than guessing if two sets share
+the newest timestamp.
+
+```powershell
+pnpm reconcile:all              # Ledger, Payments, Risk and Resilience
 ```
 
 Delete `.dr-backups/` when the demonstration is finished. A backup set contains
@@ -379,7 +437,7 @@ Confirm the API process is running, verify its startup port in the terminal, and
 
 ### The web app shows that the secure service is unavailable
 
-Confirm all three application ports are listening, then inspect only local development logs:
+Confirm the application ports are listening (3000, 4000, 4101, 4102, 4103 when SABCL is configured, 4104, 4105, 4106), then inspect only local development logs:
 
 ```powershell
 Invoke-RestMethod http://localhost:4000/health

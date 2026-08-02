@@ -12,7 +12,7 @@ AEGIS Shield needs reproducible local persistence before independently owned ser
 
 Use the official `postgres:17.10-alpine` image for relational persistence. PostgreSQL supplies transactions, constraints, mature operational tooling, and a suitable future foundation for identity, ledger, payments, and audit data.
 
-One local PostgreSQL container hosts four prototype databases with separate least-privilege login roles. This preserves logical database-per-service ownership while keeping local resource use and startup complexity low. Production environments will apply stronger isolation through separately managed instances or clusters where risk, scale, and recovery boundaries require it.
+One local PostgreSQL container hosts five prototype databases with separate least-privilege login roles. This preserves logical database-per-service ownership while keeping local resource use and startup complexity low. Production environments will apply stronger isolation through separately managed instances or clusters where risk, scale, and recovery boundaries require it.
 
 Use the official `redis:8.6.5-alpine` image with authentication and append-only persistence. Redis is reserved for future sessions, idempotency records, caching, and lightweight event streams. Applications do not connect to it in this decision.
 
