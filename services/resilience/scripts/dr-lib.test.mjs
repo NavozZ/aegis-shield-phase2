@@ -26,9 +26,12 @@ import {
   assertKnownService,
   assertRegularFile,
   assertSafeFileName,
+  assertSafeSetIdentifier,
   backupRoot,
   connectionParts,
-  latestBackupDirectory,
+  listBackupSets,
+  parseSetSelection,
+  resolveBackupSet,
   encryptBackupFile,
   readBackupSet,
   redact,
@@ -251,40 +254,193 @@ test('redaction removes credentials from anything that could be logged', () => {
   assert.match(text, /\[redacted\]/u);
 });
 
-test('the newest set is chosen by creation time, not by directory name', () => {
-  // Set directories end in a random suffix, so a lexicographic sort picks the
-  // largest random value rather than the newest set. A drill that verified the
-  // wrong set would record evidence about bytes it never examined.
+/** Builds a root holding several named sets with controlled timestamps. */
+function rootWith(sets) {
   const root = workspace();
-  mkdirSync(join(root, 'backup_2026-08-01_ffffffff'));
-  writeSet({
-    directory: join(root, 'backup_2026-08-01_ffffffff'),
-    manifest: { createdAt: '2026-08-01T09:00:00.000Z' },
-  });
-  mkdirSync(join(root, 'backup_2026-08-01_00000001'));
-  writeSet({
-    directory: join(root, 'backup_2026-08-01_00000001'),
-    manifest: { createdAt: '2026-08-01T11:00:00.000Z' },
-  });
+  for (const { directory, backupSetId, createdAt } of sets) {
+    mkdirSync(join(root, directory));
+    writeSet({
+      directory: join(root, directory),
+      manifest: { backupSetId, createdAt },
+    });
+  }
+  return root;
+}
 
-  assert.equal(latestBackupDirectory(root), 'backup_2026-08-01_00000001');
+test('a bare command refuses to choose a set', () => {
+  // The whole point: "whichever set the tool picked" is not an answer an
+  // operator can act on after an incident.
+  assert.throws(() => parseSetSelection([]), /must be named explicitly/u);
 });
 
-test('a directory without a readable manifest is not treated as a set', () => {
-  const root = workspace();
-  mkdirSync(join(root, 'backup_2026-08-01_aaaaaaaa'));
-  writeSet({
-    directory: join(root, 'backup_2026-08-01_aaaaaaaa'),
-    manifest: { createdAt: '2026-08-01T09:00:00.000Z' },
-  });
-  // A stray directory must not win the comparison merely by sorting last.
-  mkdirSync(join(root, 'zzzz-not-a-backup-set'));
+test('--set and --latest cannot be combined, and unknown flags are refused', () => {
+  assert.throws(
+    () =>
+      parseSetSelection(['--set', 'backup:2026-08-01:aaaaaaaa', '--latest']),
+    /cannot be combined/u,
+  );
+  assert.throws(() => parseSetSelection(['--all']), /Unrecognised argument/u);
+  assert.throws(() => parseSetSelection(['--set']), /requires a value/u);
+  assert.throws(
+    () =>
+      parseSetSelection([
+        '--set',
+        'backup:2026-08-01:aaaaaaaa',
+        '--set',
+        'backup:2026-08-01:bbbbbbbb',
+      ]),
+    /more than once/u,
+  );
+});
 
-  assert.equal(latestBackupDirectory(root), 'backup_2026-08-01_aaaaaaaa');
+test('--set accepts both spellings and --latest parses alone', () => {
+  assert.deepEqual(parseSetSelection(['--latest']), { mode: 'latest' });
+  assert.deepEqual(parseSetSelection(['--set', 'backup:2026-08-01:aaaaaaaa']), {
+    mode: 'explicit',
+    id: 'backup:2026-08-01:aaaaaaaa',
+  });
+  assert.deepEqual(parseSetSelection(['--set=backup_2026-08-01_aaaaaaaa']), {
+    mode: 'explicit',
+    id: 'backup_2026-08-01_aaaaaaaa',
+  });
+});
+
+test('a set identifier is an opaque token, never a path', () => {
+  for (const unsafe of [
+    '../../etc/passwd',
+    '..',
+    'a/b',
+    'a\b',
+    '/absolute',
+    'short',
+    '',
+    null,
+    'has space in it',
+  ]) {
+    assert.throws(() => assertSafeSetIdentifier(unsafe), /opaque token/u);
+  }
+  assert.doesNotThrow(() =>
+    assertSafeSetIdentifier('backup:2026-08-01:aaaaaaaa'),
+  );
+});
+
+test('--set selects exactly the named set, by id or by directory', () => {
+  const root = rootWith([
+    {
+      directory: 'backup_2026-08-01_aaaaaaaa',
+      backupSetId: 'backup:2026-08-01:aaaaaaaa',
+      createdAt: '2026-08-01T09:00:00.000Z',
+    },
+    {
+      directory: 'backup_2026-08-01_bbbbbbbb',
+      backupSetId: 'backup:2026-08-01:bbbbbbbb',
+      createdAt: '2026-08-01T11:00:00.000Z',
+    },
+  ]);
+  const byId = resolveBackupSet(
+    { mode: 'explicit', id: 'backup:2026-08-01:aaaaaaaa' },
+    root,
+  );
+  assert.equal(byId.backupSetId, 'backup:2026-08-01:aaaaaaaa');
+  assert.equal(byId.directory, 'backup_2026-08-01_aaaaaaaa');
+
+  const byDirectory = resolveBackupSet(
+    { mode: 'explicit', id: 'backup_2026-08-01_bbbbbbbb' },
+    root,
+  );
+  assert.equal(byDirectory.backupSetId, 'backup:2026-08-01:bbbbbbbb');
+});
+
+test('--latest uses the manifest timestamp when names sort the other way', () => {
+  // Set directories end in a random suffix, so a lexicographic sort picks the
+  // largest random value rather than the newest set. That bug silently made a
+  // drill verify a set it never created.
+  const root = rootWith([
+    {
+      directory: 'backup_2026-08-01_ffffffff',
+      backupSetId: 'backup:2026-08-01:ffffffff',
+      createdAt: '2026-08-01T09:00:00.000Z',
+    },
+    {
+      directory: 'backup_2026-08-01_00000001',
+      backupSetId: 'backup:2026-08-01:00000001',
+      createdAt: '2026-08-01T11:00:00.000Z',
+    },
+  ]);
+  assert.equal(
+    resolveBackupSet({ mode: 'latest' }, root).backupSetId,
+    'backup:2026-08-01:00000001',
+  );
+});
+
+test('two sets sharing the newest timestamp fail rather than pick one', () => {
+  // A coin toss here would make drill evidence depend on filesystem ordering.
+  const root = rootWith([
+    {
+      directory: 'backup_2026-08-01_aaaaaaaa',
+      backupSetId: 'backup:2026-08-01:aaaaaaaa',
+      createdAt: '2026-08-01T09:00:00.000Z',
+    },
+    {
+      directory: 'backup_2026-08-01_bbbbbbbb',
+      backupSetId: 'backup:2026-08-01:bbbbbbbb',
+      createdAt: '2026-08-01T09:00:00.000Z',
+    },
+  ]);
+  assert.throws(
+    () => resolveBackupSet({ mode: 'latest' }, root),
+    /share the newest creation time/u,
+  );
+});
+
+test('a named set that does not exist is reported, not substituted', () => {
+  const root = rootWith([
+    {
+      directory: 'backup_2026-08-01_aaaaaaaa',
+      backupSetId: 'backup:2026-08-01:aaaaaaaa',
+      createdAt: '2026-08-01T09:00:00.000Z',
+    },
+  ]);
+  assert.throws(
+    () =>
+      resolveBackupSet(
+        { mode: 'explicit', id: 'backup:2026-08-01:cccccccc' },
+        root,
+      ),
+    /was not found/u,
+  );
 });
 
 test('an empty backup root is reported rather than returning undefined', () => {
-  assert.throws(() => latestBackupDirectory(workspace()), /No backup set/u);
+  assert.throws(
+    () => resolveBackupSet({ mode: 'latest' }, workspace()),
+    /No backup set/u,
+  );
+  assert.throws(
+    () =>
+      resolveBackupSet(
+        { mode: 'explicit', id: 'backup:2026-08-01:aaaaaaaa' },
+        workspace(),
+      ),
+    /No backup set/u,
+  );
+});
+
+test('a directory without a readable manifest is not treated as a set', () => {
+  const root = rootWith([
+    {
+      directory: 'backup_2026-08-01_aaaaaaaa',
+      backupSetId: 'backup:2026-08-01:aaaaaaaa',
+      createdAt: '2026-08-01T09:00:00.000Z',
+    },
+  ]);
+  // A stray directory must not win the comparison merely by sorting last.
+  mkdirSync(join(root, 'zzzz-not-a-backup-set'));
+  assert.equal(listBackupSets(root).length, 1);
+  assert.equal(
+    resolveBackupSet({ mode: 'latest' }, root).directory,
+    'backup_2026-08-01_aaaaaaaa',
+  );
 });
 
 test('the backup directory follows DR_BACKUP_DIR when it is set', () => {

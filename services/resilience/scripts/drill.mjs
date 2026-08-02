@@ -90,8 +90,9 @@ try {
   // Every later step names this set explicitly. A drill that verified or
   // restored a different set would record evidence about bytes it never
   // examined, which is worse than recording no drill at all.
-  const backupDirectory = backup.payload.directory;
-  if (!backupDirectory) throw new Error('Backup did not name its directory.');
+  if (!backup.payload.directory) {
+    throw new Error('Backup did not name its directory.');
+  }
   await post('/internal/v1/backup-sets', {
     backupSetId,
     createdAt: backup.payload.createdAt,
@@ -108,7 +109,7 @@ try {
 
   // 2. Verify the set without restoring it.
   failureCode = 'MANIFEST_INVALID';
-  const verified = runScript('backup-verify.mjs', [backupDirectory]);
+  const verified = runScript('backup-verify.mjs', ['--set', backupSetId]);
   if (verified.code !== 0 || verified.payload?.status !== 'PASS') {
     throw new Error('Backup verification failed.');
   }
@@ -119,7 +120,7 @@ try {
 
   // 3. Restore into disposable databases and prove the schema is there.
   failureCode = 'RESTORE_FAILED';
-  const restored = runScript('restore-verify.mjs', [backupDirectory]);
+  const restored = runScript('restore-verify.mjs', ['--set', backupSetId]);
   if (restored.code !== 0 || restored.payload?.status !== 'PASS') {
     throw new Error('Isolated restore verification failed.');
   }

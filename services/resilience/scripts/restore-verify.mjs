@@ -5,9 +5,10 @@
  * The safety property that matters most: this never writes to an active service
  * database. Every restore target is a freshly created database with a generated
  * name, and the names of the live databases are checked against the targets
- * before a single byte is restored. The default path has no flag, no
- * environment variable and no argument that can redirect it onto a live
- * database — overwriting one is not a supported operation of this tool.
+ * before a single byte is restored. There is no flag, environment variable or
+ * argument that can redirect it onto a live database — overwriting one is not a
+ * supported operation of this tool. The `--set` argument names which backup to
+ * read, never where to write.
  *
  * Temporary databases and decrypted material are removed in `finally`, so a
  * failure mid-restore does not leave plaintext dumps or half-restored databases
@@ -17,23 +18,20 @@ import { rmSync, writeFileSync } from 'node:fs';
 import {
   BACKUP_SCOPE,
   adminConnection,
-  backupRoot,
   connectionParts,
   decryptBackupFile,
   join,
-  latestBackupDirectory,
   loadBackupKey,
   log,
   makeTempDirectory,
+  parseSetSelection,
   psqlEnvironment,
   randomUUID,
   readFileSync,
+  resolveBackupSet,
   run,
   verifyBackupSet,
 } from './dr-lib.mjs';
-
-const requested = process.argv[2];
-const root = backupRoot();
 
 /** Live database names, so a target can never collide with one. */
 function liveDatabaseNames() {
@@ -97,12 +95,24 @@ async function scalar(database, sql) {
 }
 
 try {
+  const selection = parseSetSelection(process.argv.slice(2));
+  const selected = resolveBackupSet(selection);
+  // Announced before a single database is created, so the operator can see which
+  // set is about to be restored rather than inferring it from the result.
+  log('restore.selected', {
+    backupSetId: selected.backupSetId,
+    selection: selection.mode,
+  });
+  const directory = selected.path;
+
   const key = loadBackupKey();
-  const directory = join(root, requested ?? latestBackupDirectory(root));
 
   // Checksums and authenticity first: a corrupted or wrong-key set is rejected
   // before any database is created.
   const { manifest, totalBytes } = verifyBackupSet(directory, key);
+  if (manifest.backupSetId !== selected.backupSetId) {
+    throw new Error('The manifest names a different backup set.');
+  }
   log('restore.verified.manifest', { backupSetId: manifest.backupSetId });
 
   const live = liveDatabaseNames();
@@ -177,6 +187,7 @@ try {
   summary = {
     status,
     backupSetId: manifest.backupSetId,
+    directory: selected.directory,
     services: checks,
     sizeBytes: totalBytes,
     // Named for what they are. This is a prototype drill against disposable
@@ -185,10 +196,10 @@ try {
     measuredRecoveryDurationMs: durationMs,
   };
 } catch (error) {
-  summary = {
-    status: 'FAIL',
-    reason: error instanceof Error ? error.message.slice(0, 200) : 'unknown',
-  };
+  const reason = error instanceof Error ? error.message : 'unknown';
+  process.stderr.write(`${reason}
+`);
+  summary = { status: 'FAIL', reason: reason.slice(0, 200) };
   log('restore.failed', summary);
   process.exitCode = 1;
 } finally {

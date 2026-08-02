@@ -144,6 +144,22 @@ try {
     manifestChecksum,
     sizeBytes: totalBytes,
   });
+  // The exact next commands, with this set named explicitly. Every later tool
+  // refuses to guess a set, so the operator is handed the identifier rather than
+  // left to find it.
+  process.stderr.write(
+    [
+      '',
+      `Backup set created: ${backupSetId}`,
+      '',
+      'Next steps, in order:',
+      `  pnpm dr:backup:verify -- --set ${backupSetId}`,
+      `  pnpm dr:backup:verify:negative -- --set ${backupSetId}`,
+      `  pnpm dr:restore:verify -- --set ${backupSetId}`,
+      '',
+      '',
+    ].join('\n'),
+  );
   process.stdout.write(
     `${JSON.stringify({
       status: 'PASS',

@@ -12,6 +12,10 @@
  *
  * The real set is never modified: each case works on a copy in a temporary
  * directory that is removed afterwards.
+ *
+ * The set must be named: `--set <backup-set-id>` or `--latest`. Refusing to
+ * guess keeps every disaster-recovery command consistent about which bytes it
+ * examined.
  */
 import {
   cpSync,
@@ -22,18 +26,28 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import {
-  backupRoot,
-  latestBackupDirectory,
   loadBackupKey,
   log,
   makeTempDirectory,
+  parseSetSelection,
+  resolveBackupSet,
   verifyBackupSet,
 } from './dr-lib.mjs';
 
-const root = backupRoot();
-const requested = process.argv[2];
-const name = requested ?? latestBackupDirectory(root);
-const source = join(root, name);
+let selected;
+try {
+  selected = resolveBackupSet(parseSetSelection(process.argv.slice(2)));
+} catch (error) {
+  const reason = error instanceof Error ? error.message : 'unknown';
+  process.stderr.write(`${reason}
+`);
+  process.stdout.write(`${JSON.stringify({ status: 'FAIL' })}
+`);
+  process.exit(1);
+}
+const name = selected.backupSetId;
+const source = selected.path;
+log('negative.selected', { backupSetId: name });
 
 const key = loadBackupKey();
 const workspace = makeTempDirectory('aegis-dr-negative-');
@@ -170,6 +184,7 @@ process.stdout.write(
   `${JSON.stringify({
     status,
     backupSetId: name,
+    directory: selected.directory,
     controlVerified: controlPassed,
     cases: results.map((item) => ({ case: item.case, outcome: item.outcome })),
   })}\n`,

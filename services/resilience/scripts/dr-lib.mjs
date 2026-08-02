@@ -281,33 +281,151 @@ export function verifyBackupSet(directory, key) {
  * A directory without a readable manifest is not a backup set and is skipped
  * rather than allowed to win the comparison.
  */
-export function latestBackupDirectory(root = backupRoot()) {
-  let best;
-  for (const entry of readdirSync(root, { withFileTypes: true })) {
+export function listBackupSets(root = backupRoot()) {
+  const sets = [];
+  let entries;
+  try {
+    entries = readdirSync(root, { withFileTypes: true });
+  } catch {
+    return sets;
+  }
+  for (const entry of entries) {
     if (!entry.isDirectory()) continue;
-    let createdAt;
+    let manifest;
     try {
-      createdAt = Date.parse(
-        JSON.parse(
-          readFileSync(join(root, entry.name, 'manifest.json'), 'utf8'),
-        ).createdAt,
+      manifest = JSON.parse(
+        readFileSync(join(root, entry.name, 'manifest.json'), 'utf8'),
       );
     } catch {
+      // Not a backup set. Skipped rather than allowed into the comparison, so a
+      // stray directory cannot win by sorting last.
       continue;
     }
+    const createdAt = Date.parse(manifest?.createdAt);
     if (!Number.isFinite(createdAt)) continue;
-    // The name breaks a tie, so the result is deterministic when two sets share
-    // a timestamp.
-    if (
-      !best ||
-      createdAt > best.createdAt ||
-      (createdAt === best.createdAt && entry.name > best.name)
-    ) {
-      best = { name: entry.name, createdAt };
-    }
+    if (typeof manifest?.backupSetId !== 'string') continue;
+    sets.push({
+      directory: entry.name,
+      backupSetId: manifest.backupSetId,
+      createdAt,
+    });
   }
-  if (!best) throw new Error('No backup set was found.');
-  return best.name;
+  return sets;
+}
+
+/**
+ * The identifier a caller may name on the command line.
+ *
+ * A set identifier is an opaque token, never a path. Rejecting separators and
+ * dot segments here means the value can never be joined onto the backup root to
+ * reach somewhere else.
+ */
+const SET_IDENTIFIER = /^[A-Za-z0-9][A-Za-z0-9:._-]{7,127}$/u;
+
+export function assertSafeSetIdentifier(value) {
+  if (
+    typeof value !== 'string' ||
+    !SET_IDENTIFIER.test(value) ||
+    value.includes('..') ||
+    value.includes('/') ||
+    value.includes('\\')
+  ) {
+    throw new Error(
+      'A backup set identifier must be an opaque token, not a path.',
+    );
+  }
+  return value;
+}
+
+export const SELECTION_USAGE = [
+  'A backup set must be named explicitly.',
+  '',
+  '  --set <backup-set-id>   operate on exactly this set',
+  '  --latest                operate on the newest set by manifest creation time',
+  '',
+  'Refusing to guess: verifying or restoring a set the operator did not name is',
+  'how a drill ends up recording evidence about bytes it never examined.',
+].join('\n');
+
+/**
+ * Parses the set selection from argv.
+ *
+ * There is deliberately no default. A bare command fails rather than implicitly
+ * choosing a set, because "whichever one the tool picked" is not an answer an
+ * operator can act on after an incident.
+ */
+export function parseSetSelection(argv) {
+  let explicit;
+  let latest = false;
+  for (let index = 0; index < argv.length; index += 1) {
+    const argument = argv[index];
+    if (argument === '--latest') {
+      latest = true;
+      continue;
+    }
+    if (argument === '--set') {
+      if (explicit !== undefined) {
+        throw new Error('--set was given more than once.');
+      }
+      index += 1;
+      if (index >= argv.length) throw new Error('--set requires a value.');
+      explicit = assertSafeSetIdentifier(argv[index]);
+      continue;
+    }
+    if (argument.startsWith('--set=')) {
+      if (explicit !== undefined) {
+        throw new Error('--set was given more than once.');
+      }
+      explicit = assertSafeSetIdentifier(argument.slice('--set='.length));
+      continue;
+    }
+    throw new Error(`Unrecognised argument: ${argument.slice(0, 40)}`);
+  }
+  if (explicit !== undefined && latest) {
+    throw new Error('--set and --latest cannot be combined.');
+  }
+  if (explicit !== undefined) return { mode: 'explicit', id: explicit };
+  if (latest) return { mode: 'latest' };
+  throw new Error(SELECTION_USAGE);
+}
+
+/**
+ * Resolves a selection to exactly one set on disk.
+ *
+ * `--latest` compares the manifest's `createdAt`, never the directory name: a
+ * set directory ends in a random suffix, so a lexicographic sort picks the
+ * largest random value rather than the newest set.
+ *
+ * Two sets sharing the newest timestamp is an error rather than a coin toss.
+ * Picking one arbitrarily would make the drill's evidence depend on which of two
+ * indistinguishable sets the filesystem happened to list first.
+ */
+export function resolveBackupSet(selection, root = backupRoot()) {
+  const sets = listBackupSets(root);
+  if (sets.length === 0) throw new Error('No backup set was found.');
+
+  if (selection.mode === 'explicit') {
+    const matches = sets.filter(
+      (set) =>
+        set.backupSetId === selection.id || set.directory === selection.id,
+    );
+    if (matches.length === 0) {
+      throw new Error('The named backup set was not found.');
+    }
+    if (matches.length > 1) {
+      throw new Error('The named backup set is ambiguous.');
+    }
+    return { ...matches[0], path: join(root, matches[0].directory) };
+  }
+
+  const newest = Math.max(...sets.map((set) => set.createdAt));
+  const candidates = sets.filter((set) => set.createdAt === newest);
+  if (candidates.length > 1) {
+    throw new Error(
+      'Two backup sets share the newest creation time. Name one with --set.',
+    );
+  }
+  return { ...candidates[0], path: join(root, candidates[0].directory) };
 }
 
 /** Creates a temporary working directory that the caller must remove. */
