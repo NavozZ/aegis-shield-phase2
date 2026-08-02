@@ -4,7 +4,9 @@ This directory will contain repeatable demonstration scripts and expected eviden
 
 ## Secure login
 
-To be completed during implementation. Demonstrate customer authentication, token lifecycle, authorization, safe failure messages, and relevant audit evidence.
+Implemented in Prompt 04. See [authentication-demo.md](authentication-demo.md) for
+onboarding, OTP, Argon2id PIN, passkey registration and use, session lifecycle,
+safe failure messages and the authentication audit trail.
 
 ## Accounts and ledger
 
@@ -20,11 +22,19 @@ Implemented in Prompt 07. See [customer-transfer-demo.md](customer-transfer-demo
 
 ## QR/offline payment
 
-To be completed during implementation. Demonstrate QR initiation and the designed low-connectivity or offline-assisted workflow, including reconciliation and duplicate protection.
+Implemented in Prompt 08. Walkthrough:
+[../release/FINAL_DEMO_GUIDE.md](../release/FINAL_DEMO_GUIDE.md), inclusive-channel
+journey. Signed QR payloads with dynamic and static expiry, replay rejection and
+idempotent settlement; design and limits in
+[../security/inclusive-channels-threat-model.md](../security/inclusive-channels-threat-model.md).
 
 ## USSD/agent access
 
-To be completed during implementation. Demonstrate inclusive access controls, session protection, agent authorization, and safe handling of constrained-channel data.
+Implemented in Prompt 08. Walkthrough:
+[../release/FINAL_DEMO_GUIDE.md](../release/FINAL_DEMO_GUIDE.md), inclusive-channel
+journey. Bounded USSD session state with expiry and webhook authentication, and
+agent cash authorization with per-agent limits and idempotency; design and limits
+in [../security/inclusive-channels-threat-model.md](../security/inclusive-channels-threat-model.md).
 
 ## Threat detection
 
@@ -32,7 +42,12 @@ Implemented in Prompt 10. See [risk-controls-demo.md](risk-controls-demo.md).
 
 ## Service quarantine
 
-To be completed during implementation. Demonstrate isolation of a simulated compromised service while preserving explicit safety and recovery boundaries.
+Implemented in Prompt 10. See [risk-controls-demo.md](risk-controls-demo.md) for a
+synthetic integrity signal producing an expiring scoped control, enforced
+independently at the Gateway, in Payments and in Identity, and released by an
+operator with an audited reason. Failure behaviour is documented in
+[../security/risk-failure-policy.md](../security/risk-failure-policy.md) and
+[../operations/service-failure-runbook.md](../operations/service-failure-runbook.md).
 
 ## Recovery
 

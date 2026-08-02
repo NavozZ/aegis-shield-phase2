@@ -27,7 +27,7 @@ What it does not do is documented as carefully as what it does: padding hides ex
 - Deterministic web smoke tests and API unit/e2e tests
 - GitHub Actions jobs for lint, typecheck, test, and build
 - Reproducible Docker Compose services for PostgreSQL and authenticated Redis
-- Four service-owned prototype databases with least-privilege roles
+- Five service-owned prototype databases with least-privilege roles
 - Cross-platform infrastructure lifecycle, health, ownership, and validation commands
 - Independent NestJS Identity service and Prisma migration
 - Redis-backed hashed OTP challenges and opaque revocable sessions
@@ -54,6 +54,7 @@ What it does not do is documented as carefully as what it does: padding hides ex
 - Independent Payments orchestration with append-only lifecycle events and bounded recovery
 - Immutable `CUSTOMER_TRANSFER` journals with deterministic locks and exact BigInt balances
 - Sent/received history, masked previews, printable receipts, EN/SI/TA, responsive and axe coverage
+- QR Pay with signed payloads and expiry, USSD session state, and agent cash with per-agent limits and idempotency — see the release blockers below before demonstrating the USSD or agent channels
 - Versioned, authenticated and idempotent security-event ingestion with bounded retention
 - Explainable deterministic risk scoring, versioned reasons and Redis velocity windows
 - Expiring scoped controls enforced independently by Gateway, Payments and Identity
@@ -166,6 +167,7 @@ pnpm dev
 - Gateway readiness: `http://localhost:4000/health/ready`
 - Identity service: `http://127.0.0.1:4101` (internal only)
 - Ledger service: `http://127.0.0.1:4102` (internal only)
+- SABCL router: `http://127.0.0.1:4103` (internal only, started when SABCL is configured)
 - Payments service: `http://127.0.0.1:4104` (internal only)
 - Risk service: `http://127.0.0.1:4105` (internal only)
 - Resilience service: `http://127.0.0.1:4106` (internal only)
@@ -183,6 +185,41 @@ Start the built stack with readiness waiting and clean shutdown on `Ctrl+C`:
 pnpm build
 pnpm stack:start
 ```
+
+## One-command demonstration
+
+```powershell
+pnpm env:init:local          # create .env with generated local secrets
+pnpm env:check               # validate it; names variables, never prints a value
+pnpm demo:start              # infrastructure, migrations and every service
+pnpm demo:status             # what is listening
+pnpm demo:verify             # liveness, readiness and response-shape checks
+pnpm demo:stop               # stop containers, keep local data
+pnpm demo:reset -- --yes     # destroy local volumes, on explicit confirmation
+pnpm demo:evidence           # synthetic screenshots into the ignored .evidence/
+```
+
+`demo:start` validates the environment, confirms the Docker engine, starts
+PostgreSQL and Redis, applies every committed migration, then brings up Identity,
+Ledger, the SABCL router (when configured), Payments, Risk, Resilience, the
+Gateway and the web application, waiting on each readiness endpoint rather than
+sleeping. Ctrl+C stops every child in reverse order and never deletes data.
+
+Full walkthrough: [docs/release/FINAL_DEMO_GUIDE.md](docs/release/FINAL_DEMO_GUIDE.md).
+
+## Reconciliation
+
+```powershell
+pnpm reconcile:all           # Ledger, Payments, Risk and Resilience together
+pnpm ledger:reconcile
+pnpm payments:reconcile
+pnpm risk:reconcile
+pnpm resilience:reconcile
+```
+
+`reconcile:all` preserves each individual result, reports a sanitized summary and
+returns non-zero when any of the four fails. Risk and Resilience reconcile
+through their running services rather than reaching into their schemas.
 
 ## Quality commands
 
@@ -213,11 +250,35 @@ pnpm ledger:test
 pnpm ledger:test:integration
 pnpm ledger:test:e2e
 pnpm ledger:reconcile
+pnpm transactions:test:integration
+pnpm transactions:test:e2e
+```
+
+Run payments and inclusive-channel checks with:
+
+```powershell
+pnpm payments:test
+pnpm payments:test:startup
+pnpm payments:test:integration
+pnpm payments:test:e2e
+pnpm channels:test
+pnpm channels:test:qr
+pnpm channels:test:ussd
+pnpm channels:test:agent
+```
+
+Run risk and resilience checks with:
+
+```powershell
+pnpm risk:test
+pnpm risk:test:integration
+pnpm resilience:test
+pnpm resilience:test:integration
 ```
 
 Only `pnpm ledger:test` runs without Docker. The integration, end-to-end and reconciliation commands require PostgreSQL and run in GitHub Actions or on a Docker-capable machine.
 
-Run transfer orchestration and real four-service checks with:
+Run transfer orchestration and real five-service checks with:
 
 ```powershell
 pnpm payments:test
@@ -242,7 +303,7 @@ Generated framework and Turborepo output can be removed safely with `pnpm clean`
 
 ## Architecture
 
-The browser calls the Gateway for authentication, accounts, transfers and security operations. Gateway sends PIN step-up only to Identity, checks Risk before sensitive confirmation and sends trusted customer context only to Payments. Payments independently evaluates its authoritative intent with Risk before asking Ledger—the sole balance authority—to post one balanced transfer journal. Identity, Payments, Ledger and Risk own isolated databases and never share tables. Raw sessions, PINs, internal tokens and full account references never enter public responses or browser storage.
+The browser calls the Gateway for authentication, accounts, transfers and security operations. Gateway sends PIN step-up only to Identity, checks Risk before sensitive confirmation and sends trusted customer context only to Payments. Payments independently evaluates its authoritative intent with Risk before asking Ledger—the sole balance authority—to post one balanced transfer journal. Identity, Payments, Ledger, Risk and Resilience own isolated databases and never share tables. Raw sessions, PINs, internal tokens and full account references never enter public responses or browser storage.
 
 Money is stored and transported as integer minor units, never as a JavaScript number. Journals are immutable and their balance is enforced by deferred database constraint triggers.
 
@@ -324,8 +385,8 @@ See [operational resilience architecture](docs/architecture/operational-resilien
 ## Next milestones
 
 - production workload identity and OTP delivery
-- transaction history and statements
-- idempotent transfers, payments, and inclusive access channels
+- ~~transaction history and statements~~ — implemented in Prompt 07
+- ~~idempotent transfers, payments, and inclusive access channels~~ — implemented in Prompt 08
 - ~~SABCL metadata-protection path~~ — implemented in Prompt 09
 - ~~threat detection and service quarantine~~ — implemented in Prompt 10
 - ~~prototype backup, restore verification and recovery drills~~ — implemented in Prompt 11
@@ -333,6 +394,16 @@ See [operational resilience architecture](docs/architecture/operational-resilien
 - observability, audit integrity, backup key custody and offsite immutable storage
 
 Each milestone will use a short-lived branch and a traceable pull request as described in [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Release blockers
+
+The final security review records six confirmed defects in the inclusive-channel
+code, including a route that moves money with no authentication. They are
+documented rather than fixed in this release. **Do not demonstrate the USSD or
+agent-cash channels as working, and do not expose the stack to a network.**
+
+Full detail, with file-level evidence:
+[docs/release/final-security-review.md](docs/release/final-security-review.md#release-blockers).
 
 ## Security warning
 

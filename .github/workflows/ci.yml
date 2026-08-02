@@ -180,8 +180,13 @@ jobs:
         run: pnpm db:deploy:risk
       - name: Apply committed Resilience migrations
         run: pnpm db:deploy:resilience
-      - name: Test infrastructure tooling
-        run: node --test infra/scripts/infra.test.mjs
+      - name: Test infrastructure, environment, demo, reconcile and evidence tooling
+        run: node --test "infra/scripts/*.test.mjs"
+      # The command surface and the documentation must agree. This fails if a
+      # documented pnpm command does not exist, if a release document is
+      # missing, or if a markdown link points at a file that is not there.
+      - name: Validate documented commands and release documents
+        run: node --test infra/scripts/docs.test.mjs
       - name: Test shared contracts
         run: pnpm --filter @aegis/contracts test
       # The SABCL package is built by its own test script, and the gateway and
@@ -243,6 +248,12 @@ jobs:
         run: pnpm web:test:e2e
       - name: Test transfer accessibility including EN SI TA and mobile states
         run: pnpm web:test:a11y
+      # Evidence capture is exercised for its sanitization: every captured page
+      # is scanned for one-time codes, PINs, cookies, tokens, connection strings
+      # and full account references, and the run fails if any is rendered. The
+      # images themselves are never uploaded.
+      - name: Capture and sanitize demonstration evidence
+        run: pnpm --filter @aegis/web test:evidence
       # The browser harness stops infrastructure as part of its own cleanup, so
       # reconciliation restarts it. Named volumes persist, so the ledger written
       # by the earlier steps is still there to be checked.
@@ -287,17 +298,66 @@ jobs:
           pnpm risk:reconcile
       # Backup and restore are operator command-line tooling, never an HTTP
       # endpoint, so they are invoked here the same way an operator would.
-      - name: Create and verify an encrypted backup set
+      #
+      # The set is named explicitly on every command. A bare verify or restore
+      # is refused by the tooling, which is asserted below: guessing which set
+      # to examine is how a drill records evidence about bytes it never read.
+      - name: Create an encrypted backup set and verify it by explicit identifier
         run: |
-          pnpm dr:backup
-          pnpm dr:backup:verify
+          # Redirected rather than piped: the default Actions shell is `bash -e`
+          # without pipefail, so `| tee` would mask a failing backup behind
+          # tee's exit status.
+          pnpm dr:backup > backup-summary.json
+          cat backup-summary.json
+          set_id=$(node -e "
+            const fs = require('node:fs');
+            const lines = fs
+              .readFileSync('backup-summary.json', 'utf8')
+              .split(String.fromCharCode(10))
+              .map((line) => line.trim())
+              .filter(Boolean)
+              .reverse();
+            for (const line of lines) {
+              try {
+                const parsed = JSON.parse(line);
+                if (parsed && parsed.status === 'PASS' && parsed.backupSetId) {
+                  process.stdout.write(parsed.backupSetId);
+                  process.exit(0);
+                }
+              } catch {}
+            }
+            process.exit(1);
+          ")
+          rm -f backup-summary.json
+          echo "Selected backup set: $set_id"
+          echo "AEGIS_BACKUP_SET_ID=$set_id" >> "$GITHUB_ENV"
+          pnpm dr:backup:verify -- --set "$set_id"
+      - name: Refuse a bare, ambiguous or unknown backup selection
+        run: |
+          # A bare command must fail rather than pick a set.
+          if pnpm dr:backup:verify; then
+            echo "A bare verify succeeded; it must require --set or --latest."
+            exit 1
+          fi
+          # A set that does not exist must be reported, never substituted.
+          if pnpm dr:backup:verify -- --set backup:1970-01-01:deadbeef; then
+            echo "An unknown backup set was accepted."
+            exit 1
+          fi
+          # An identifier shaped like a path must be refused outright.
+          if pnpm dr:backup:verify -- --set ../../etc/passwd; then
+            echo "A path was accepted as a backup set identifier."
+            exit 1
+          fi
+          # --latest remains available when the operator asks for it.
+          pnpm dr:backup:verify -- --latest
       - name: Refuse tampered, wrong-key, incomplete and unsafe backup sets
-        run: pnpm dr:backup:verify:negative
+        run: pnpm dr:backup:verify:negative -- --set "$AEGIS_BACKUP_SET_ID"
       # The restore target is always a freshly created disposable database with
       # a generated name; the tooling refuses any target that matches a live
       # service database, and drops what it created before it exits.
       - name: Verify an isolated restore into disposable databases
-        run: pnpm dr:restore:verify
+        run: pnpm dr:restore:verify -- --set "$AEGIS_BACKUP_SET_ID"
       - name: Run the deterministic disaster-recovery drill
         run: |
           pnpm --filter @aegis/resilience-service build
@@ -340,6 +400,34 @@ jobs:
           # and recovery duration, then cleans up. It fails loudly on any of
           # those steps rather than recording a drill that proved nothing.
           pnpm dr:drill
+      # The aggregate command must agree with the four individual runs above.
+      # It is run with the same services still up, from the drill step's trap.
+      - name: Aggregate reconciliation across Ledger, Payments, Risk and Resilience
+        run: |
+          pnpm --filter @aegis/risk-service build
+          pnpm --filter @aegis/resilience-service build
+          ( cd services/risk && exec node dist/main.js ) &
+          risk_pid=$!
+          ( cd services/resilience && exec node dist/main.js ) &
+          resilience_pid=$!
+          cleanup() {
+            kill "$resilience_pid" 2>/dev/null || true
+            kill "$risk_pid" 2>/dev/null || true
+            wait "$resilience_pid" 2>/dev/null || true
+            wait "$risk_pid" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+          for url in http://127.0.0.1:4105/health/live http://127.0.0.1:4106/health/live; do
+            for attempt in $(seq 1 60); do
+              if curl -fsS "$url" >/dev/null 2>&1; then break; fi
+              if [ "$attempt" -eq 60 ]; then
+                echo "$url did not become live within 60s"
+                exit 1
+              fi
+              sleep 1
+            done
+          done
+          pnpm reconcile:all
       # A backup set is customer data under a key, and a decrypted dump is
       # customer data in the clear. Neither may survive the job or reach an
       # artifact, so the working directory is removed and its absence asserted.

@@ -7,8 +7,8 @@ import pg from 'pg';
 import { createClient } from 'redis';
 
 const mode = process.argv[2];
-if (!['functional', 'a11y'].includes(mode))
-  throw new Error('Expected functional or a11y mode.');
+if (!['functional', 'a11y', 'evidence'].includes(mode))
+  throw new Error('Expected functional, a11y or evidence mode.');
 const playwrightArguments = process.argv.slice(3);
 const webRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const repositoryRoot = resolve(webRoot, '..', '..');
@@ -368,7 +368,14 @@ try {
       'test',
       ...(playwrightArguments.length > 0
         ? playwrightArguments
-        : ['--grep', mode === 'functional' ? '@functional' : '@a11y']),
+        : [
+            '--grep',
+            mode === 'functional'
+              ? '@functional'
+              : mode === 'a11y'
+                ? '@a11y'
+                : '@evidence',
+          ]),
     ],
     { cwd: webRoot },
   );

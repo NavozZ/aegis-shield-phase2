@@ -89,6 +89,21 @@ pnpm infra:reset -- --yes
 
 Do not use reset when local prototype data must be retained.
 
+## Environment and demonstration commands
+
+```powershell
+pnpm env:init:local          # create .env from .env.example with generated secrets
+pnpm env:check               # validate it without displaying any value
+pnpm demo:start              # infrastructure, migrations and every service
+pnpm demo:status             # what is listening
+pnpm demo:verify             # liveness, readiness and response-shape checks
+pnpm demo:stop               # stop containers, keep local data
+pnpm demo:reset -- --yes     # destroy local volumes, on explicit confirmation
+```
+
+`demo:stop` preserves the named volumes. Only `demo:reset -- --yes` destroys
+data, and it says so before it does.
+
 ## Backups
 
 `pnpm dr:backup` captures all five databases with `pg_dump`, encrypts each file
@@ -104,8 +119,9 @@ Redis is deliberately not backed up. Its cache, replay and velocity state is
 recreatable, so preserving it would add nothing a restore could not rebuild while
 widening what a stolen set exposes.
 
-`pnpm dr:restore:verify` proves a set restores, into freshly named disposable
-databases only. It cannot be pointed at a live service database — targets are
+`pnpm dr:restore:verify -- --set <backup-set-id>` proves a set restores, into
+freshly named disposable databases only. The set must be named; a bare command
+fails rather than guessing. It cannot be pointed at a live service database — targets are
 generated names checked against the live database names, and dropped afterwards.
 
 See the [backup and restore runbook](../docs/operations/backup-restore-runbook.md).

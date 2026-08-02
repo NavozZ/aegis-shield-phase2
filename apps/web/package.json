@@ -12,6 +12,7 @@
     "test": "vitest run",
     "test:e2e": "node e2e/run.mjs functional",
     "test:a11y": "node e2e/run.mjs a11y",
+    "test:evidence": "node e2e/run.mjs evidence",
     "e2e:install": "playwright install chromium",
     "clean": "node -e \"require('node:fs').rmSync('.next', { recursive: true, force: true })\""
   },
