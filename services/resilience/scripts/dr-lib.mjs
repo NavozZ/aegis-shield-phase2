@@ -359,6 +359,11 @@ export function parseSetSelection(argv) {
   let latest = false;
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
+    // `pnpm dr:backup:verify -- --set <id>` forwards the end-of-options
+    // separator through the nested pnpm invocation, so the script really does
+    // receive a literal `--`. Skipping it is the conventional behaviour and
+    // costs nothing: a command with only `--` still selects nothing and fails.
+    if (argument === '--') continue;
     if (argument === '--latest') {
       latest = true;
       continue;

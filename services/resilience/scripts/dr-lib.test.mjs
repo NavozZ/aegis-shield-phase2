@@ -267,6 +267,18 @@ function rootWith(sets) {
   return root;
 }
 
+test('the pnpm end-of-options separator is tolerated', () => {
+  // `pnpm dr:backup:verify -- --set <id>` passes a literal `--` through to the
+  // script. This is the documented invocation, and rejecting it broke CI.
+  assert.deepEqual(
+    parseSetSelection(['--', '--set', 'backup:2026-08-01:aaaaaaaa']),
+    { mode: 'explicit', id: 'backup:2026-08-01:aaaaaaaa' },
+  );
+  assert.deepEqual(parseSetSelection(['--', '--latest']), { mode: 'latest' });
+  // A separator alone still selects nothing, so a bare command still fails.
+  assert.throws(() => parseSetSelection(['--']), /must be named explicitly/u);
+});
+
 test('a bare command refuses to choose a set', () => {
   // The whole point: "whichever set the tool picked" is not an answer an
   // operator can act on after an incident.
