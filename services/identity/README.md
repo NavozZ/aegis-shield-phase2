@@ -86,7 +86,7 @@ The final command starts the built Identity service as a separate process and te
 
 ## Prototype limitations
 
-Demo OTP exists only for local/test use and is intentionally rejected in production. No SMS provider, customer-facing authentication UI, account recovery, KYC upgrade, mTLS/workload identity, or real browser authenticator ceremony is included. Prompt 04 owns the browser UI and physical passkey ceremony.
+Demo OTP exists only for local/test use and is intentionally rejected in production. No SMS provider, customer-facing authentication UI, account recovery, KYC upgrade, mTLS/workload identity, or real browser authenticator ceremony is included. The web application owns the browser UI and physical passkey ceremony.
 
 ## Transfer step-up
 

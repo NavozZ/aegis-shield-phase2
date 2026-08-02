@@ -1,6 +1,6 @@
 # Authentication demonstration
 
-This procedure demonstrates Prompt 04 with synthetic data only. It is not a production deployment guide. Never enter a real phone number, PIN, OTP, customer record, or banking credential.
+This procedure demonstrates the authentication journey with synthetic data only. It is not a production deployment guide. Never enter a real phone number, PIN, OTP, customer record, or banking credential.
 
 ## Prerequisites
 

@@ -113,7 +113,7 @@ acceptance because it is the environment with a database.
 
 ## 3. Local check results
 
-Run against the Prompt 12 working tree on the branch above. Reproduce any row by
+Run against the working tree on the branch above. Reproduce any row by
 running the command in its cell from the repository root.
 
 | Check                               | Command                                            | Status         | Evidence                                                                                                                                                                                                                                                                           |
@@ -181,7 +181,7 @@ document exists` and `every relative markdown link points at a file that
 exists`. The reported links were references from
 `docs/release/SUBMISSION_CHECKLIST.md` to release documents that had not been
 written at that moment. That was the documentation gate working as intended
-during Prompt 12, not a defect: the suite requires all six release documents —
+during this release, not a defect: the suite requires all six release documents —
 [FINAL_DEMO_GUIDE.md](./FINAL_DEMO_GUIDE.md),
 [SUBMISSION_CHECKLIST.md](./SUBMISSION_CHECKLIST.md), this report,
 [RELEASE_NOTES.md](./RELEASE_NOTES.md),

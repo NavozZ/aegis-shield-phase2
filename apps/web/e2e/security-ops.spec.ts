@@ -143,7 +143,7 @@ test('operator triages escalating risk, releases control and resolves incident @
   // that only follows from releasing one control if exactly one exists. Two
   // things break that assumption. The console renders a bounded page with a
   // "Load more controls" button, so the first page emptying does not mean the
-  // list is empty. And this branch integrates Prompt 08 and Prompt 09, so the
+  // list is empty. And this branch integrates the inclusive channels and SABCL
   // Jest transfer end-to-end now writes Risk controls to the same database
   // earlier in the CI job — this journey is no longer the only producer.
   //

@@ -2,7 +2,7 @@
 
 AEGIS Shield is a zero-trust, resilient, and inclusive digital banking platform with SABCL metadata protection. This monorepo is the official Duothan 6.0 Phase 2 workspace for demonstrating secure banking journeys under normal operation, active threats, and service failure.
 
-> **Current status:** Prompt 11 operational resilience and disaster recovery, on top of Prompt 08 inclusive channels, Prompt 09 SABCL routing and Prompt 10 threat detection. The multilingual customer UI, security-operator console, recovery operations console, API Gateway, independent Identity, Payments, Ledger, SABCL router, Risk and Resilience services, QR/USSD/agent-cash channels, encrypted metadata-minimising service routing, enforceable controls, incident audit, encrypted backup sets with isolated restore verification, deterministic recovery drills, reconciliation, and real browser validation are implemented.
+> **Current status:** The Phase 2 implementation is complete: operational resilience and disaster recovery, on top of inclusive payment channels, SABCL secure routing, and threat detection with automated controls. The multilingual customer UI, security-operator console, recovery operations console, API Gateway, independent Identity, Payments, Ledger, SABCL router, Risk and Resilience services, QR/USSD/agent-cash channels, encrypted metadata-minimising service routing, enforceable controls, incident audit, encrypted backup sets with isolated restore verification, deterministic recovery drills, reconciliation, and real browser validation are implemented.
 
 ## Core problem
 
@@ -12,7 +12,7 @@ Digital banking platforms must preserve financial correctness and service availa
 
 AEGIS Shield will separate banking capabilities into independently secured services with database-per-service ownership. Zero-trust customer and workload authentication, double-entry accounting, idempotent payments, threat detection, service quarantine, tamper-evident audit, and tested recovery will form complementary controls rather than one security boundary.
 
-SABCL (Security-Aware Blind Communication Layer) is the project's signature metadata-protection concept, implemented in Prompt 09. Internal service calls are sealed with X25519, HKDF-SHA-256, AES-256-GCM and Ed25519 before they reach a blind router that forwards them without holding any key that opens them. Customer identifiers, account identifiers, amounts, recipient references, endpoint paths, operation names and PIN authorisation never appear in the routing envelope.
+SABCL (Security-Aware Blind Communication Layer) is the project's signature metadata-protection concept. Internal service calls are sealed with X25519, HKDF-SHA-256, AES-256-GCM and Ed25519 before they reach a blind router that forwards them without holding any key that opens them. Customer identifiers, account identifiers, amounts, recipient references, endpoint paths, operation names and PIN authorisation never appear in the routing envelope.
 
 What it does not do is documented as carefully as what it does: padding hides exact payload size within a bucket and nothing more, and nothing protects a payload once the recipient has decrypted it. See the [protocol specification](docs/security/sabcl-protocol.md) and [metadata leakage analysis](docs/security/sabcl-metadata-leakage.md).
 
@@ -66,7 +66,7 @@ What it does not do is documented as carefully as what it does: padding hides ex
 - Isolated restore verification into disposable databases that can never target a live service database
 - Deterministic recovery drills with an append-only, transition-validated evidence trail and a recovery operations console
 
-External payment rails, a trained fraud model, production workforce identity, and production messaging are intentionally deferred. QR/offline payments arrived in Prompt 08, SABCL in Prompt 09, threat detection with service quarantine in Prompt 10, and prototype operational resilience with encrypted backup and recovery drills in Prompt 11. Production multi-region disaster recovery, continuous replication, zero data loss and compliance certification are explicitly **not** provided.
+External payment rails, a trained fraud model, production workforce identity, and production messaging are intentionally deferred. QR/offline payments, SABCL secure routing, threat detection with service quarantine, and prototype operational resilience with encrypted backup and recovery drills are all implemented. Production multi-region disaster recovery, continuous replication, zero data loss and compliance certification are explicitly **not** provided.
 
 ## Monorepo structure
 
@@ -385,11 +385,11 @@ See [operational resilience architecture](docs/architecture/operational-resilien
 ## Next milestones
 
 - production workload identity and OTP delivery
-- ~~transaction history and statements~~ — implemented in Prompt 07
-- ~~idempotent transfers, payments, and inclusive access channels~~ — implemented in Prompt 08
-- ~~SABCL metadata-protection path~~ — implemented in Prompt 09
-- ~~threat detection and service quarantine~~ — implemented in Prompt 10
-- ~~prototype backup, restore verification and recovery drills~~ — implemented in Prompt 11
+- ~~transaction history and statements~~ — implemented
+- ~~idempotent transfers, payments, and inclusive access channels~~ — implemented
+- ~~SABCL metadata-protection path~~ — implemented
+- ~~threat detection and service quarantine~~ — implemented
+- ~~prototype backup, restore verification and recovery drills~~ — implemented
 - governed fraud-model evaluation and production workforce identity
 - observability, audit integrity, backup key custody and offsite immutable storage
 

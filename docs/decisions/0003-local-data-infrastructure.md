@@ -26,7 +26,7 @@ Do not include pgAdmin, RedisInsight, or another database administration UI. Com
 - **SQLite:** simple, but it would not exercise role ownership, connection isolation, or the concurrency behavior expected from the future platform.
 - **An unauthenticated ephemeral Redis container:** easier to configure, but unsafe even for a loopback-published development service and unable to verify persistence behavior.
 - **Host-directory data mounts:** directly inspectable, but less portable across Docker Desktop, Linux permissions, and CI than named volumes.
-- **Database administration UIs:** convenient, but add images, ports, credentials, and attack surface that Prompt 02 does not need.
+- **Database administration UIs:** convenient, but add images, ports, credentials, and attack surface that the local data infrastructure does not need.
 
 ## Consequences
 

@@ -1,6 +1,6 @@
 # Operational resilience and disaster recovery
 
-This describes the implemented Prompt 11 boundary: encrypted backup sets,
+This describes the implemented operational-resilience boundary: encrypted backup sets,
 isolated restore verification, deterministic recovery drills, and the operator
 console that reads the resulting evidence.
 

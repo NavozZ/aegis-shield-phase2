@@ -6,7 +6,7 @@
 
 ## Context
 
-Prompts 02 to 04 established the local data boundaries, the Identity service, and the authenticated browser experience. Prompt 05 introduces the first records that represent money: customer accounts and the balances behind them.
+The local data boundaries, the Identity service, and the authenticated browser experience are established. This decision introduces the first records that represent money: customer accounts and the balances behind them.
 
 A banking ledger is the component where a silent defect is least acceptable and hardest to detect after the fact. It must survive concurrent requests, retried requests, partial failures and direct database access without ever producing a balance that the immutable record does not support.
 
@@ -14,7 +14,7 @@ A banking ledger is the component where a silent defect is least acceptable and 
 
 ### Service ownership
 
-Create `services/ledger` (`@aegis/ledger-service`) as an independent NestJS service on port 4102, owning the `aegis_ledger` database and `app` schema created in Prompt 02. It reads no other service's data store.
+Create `services/ledger` (`@aegis/ledger-service`) as an independent NestJS service on port 4102, owning the `aegis_ledger` database and `app` schema created by the local data infrastructure. It reads no other service's data store.
 
 The Ledger performs no authentication. The API Gateway derives the customer identifier from a session validated by the Identity service and passes it internally. Authentication logic is not duplicated into the Ledger, and a customer identifier supplied by a browser is never trusted.
 

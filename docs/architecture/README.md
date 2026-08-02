@@ -104,7 +104,7 @@ to `pg_dump` would be remote command execution behind a console login. See
 - notifications
 - production observability and audit integrity
 
-Each stateful service will own its data store and publish explicit contracts. Shared packages may contain schemas and utilities, but never direct cross-service database access. Prompt 02 models that ownership with separate identity, ledger, payments, and audit databases and login roles inside one local PostgreSQL container; Prompt 11 adds a fifth, `aegis_resilience`.
+Each stateful service will own its data store and publish explicit contracts. Shared packages may contain schemas and utilities, but never direct cross-service database access. The local data infrastructure models that ownership with separate identity, ledger, payments, audit and resilience databases, each with its own login role, inside one local PostgreSQL container.
 
 ## Current and future data flow
 
@@ -125,7 +125,7 @@ Operator CLI → pg_dump / pg_restore / psql → every service database
 ```
 
 When `SABCL_MODE=off` the Gateway calls each service directly with an internal
-token, as it did before Prompt 09. When SABCL is configured, those calls are
+token, as it did before SABCL was introduced. When SABCL is configured, those calls are
 encrypted before the router sees them, and in `strict` mode there is no other
 path — a router outage is an outage, never a plaintext retry.
 
@@ -198,7 +198,7 @@ The following remain to be completed as their implementations are introduced:
 - transaction history and statement flow
 - failure isolation flow beyond the implemented dependency-degradation policy
 
-## Prompt 11 recovery flow
+## Recovery flow
 
 Backup and restore run outside the request path entirely. The CLI dumps each
 authoritative database, encrypts it with AES-256-GCM, publishes the set
@@ -209,6 +209,6 @@ restore, and drops them; it can never target a live service database. Redis is
 deliberately out of scope, so sessions do not survive a restore. See
 [operational resilience and DR](./operational-resilience-and-dr.md).
 
-## Prompt 07 transfer flow
+## Transfer flow
 
 `Browser → Gateway → Identity` performs session and fresh PIN step-up; the PIN stops there. Gateway then sends a session-derived customer, opaque intent, and idempotency key to Payments. Payments owns limits and lifecycle state, while `Payments → Ledger` posts the sole balance-changing `CUSTOMER_TRANSFER` journal. Ledger locks both accounts in deterministic order and writes one debit plus one credit. A lost response remains `PROCESSING`; recovery repeats the same Ledger command and reconciliation compares both service views. See [ADR 0008](../decisions/0008-secure-customer-transfers.md).

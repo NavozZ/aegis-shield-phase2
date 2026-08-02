@@ -21,7 +21,7 @@ are listed here, before anything else, because a reader who stops after the
 summary table must still see them.
 
 Each was verified by reading the source, not inferred. None is fixed: the
-decision for this release was to document them rather than change Prompt 08
+decision for this release was to document them rather than change the channel
 service code at the final step. **The USSD and agent-cash channels must not be
 demonstrated as working, and the deployment must not be exposed to any network.**
 

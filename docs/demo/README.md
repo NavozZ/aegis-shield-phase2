@@ -4,25 +4,25 @@ This directory will contain repeatable demonstration scripts and expected eviden
 
 ## Secure login
 
-Implemented in Prompt 04. See [authentication-demo.md](authentication-demo.md) for
+See [authentication-demo.md](authentication-demo.md) for
 onboarding, OTP, Argon2id PIN, passkey registration and use, session lifecycle,
 safe failure messages and the authentication audit trail.
 
 ## Accounts and ledger
 
-Implemented in Prompt 05. See [accounts-ledger-demo.md](accounts-ledger-demo.md). Demonstrates idempotent Tier-0 account provisioning, a zero opening balance, ownership isolation, and a passing ledger reconciliation.
+See [accounts-ledger-demo.md](accounts-ledger-demo.md). Demonstrates idempotent Tier-0 account provisioning, a zero opening balance, ownership isolation, and a passing ledger reconciliation.
 
 ## Dashboard and transaction history
 
-Implemented in Prompt 06. See [dashboard-transactions-demo.md](dashboard-transactions-demo.md).
+See [dashboard-transactions-demo.md](dashboard-transactions-demo.md).
 
 ## Protected transfer
 
-Implemented in Prompt 07. See [customer-transfer-demo.md](customer-transfer-demo.md) for authorized idempotent settlement, replay, recovery, balanced Ledger evidence, responsive EN/SI/TA UI, and reconciliation.
+See [customer-transfer-demo.md](customer-transfer-demo.md) for authorized idempotent settlement, replay, recovery, balanced Ledger evidence, responsive EN/SI/TA UI, and reconciliation.
 
 ## QR/offline payment
 
-Implemented in Prompt 08. Walkthrough:
+Walkthrough:
 [../release/FINAL_DEMO_GUIDE.md](../release/FINAL_DEMO_GUIDE.md), inclusive-channel
 journey. Signed QR payloads with dynamic and static expiry, replay rejection and
 idempotent settlement; design and limits in
@@ -30,7 +30,7 @@ idempotent settlement; design and limits in
 
 ## USSD/agent access
 
-Implemented in Prompt 08. Walkthrough:
+Walkthrough:
 [../release/FINAL_DEMO_GUIDE.md](../release/FINAL_DEMO_GUIDE.md), inclusive-channel
 journey. Bounded USSD session state with expiry and webhook authentication, and
 agent cash authorization with per-agent limits and idempotency; design and limits
@@ -38,11 +38,11 @@ in [../security/inclusive-channels-threat-model.md](../security/inclusive-channe
 
 ## Threat detection
 
-Implemented in Prompt 10. See [risk-controls-demo.md](risk-controls-demo.md).
+See [risk-controls-demo.md](risk-controls-demo.md).
 
 ## Service quarantine
 
-Implemented in Prompt 10. See [risk-controls-demo.md](risk-controls-demo.md) for a
+See [risk-controls-demo.md](risk-controls-demo.md) for a
 synthetic integrity signal producing an expiring scoped control, enforced
 independently at the Gateway, in Payments and in Identity, and released by an
 operator with an audited reason. Failure behaviour is documented in
@@ -51,7 +51,7 @@ operator with an audited reason. Failure behaviour is documented in
 
 ## Recovery
 
-Implemented in Prompt 11. See
+See
 [disaster-recovery-demo.md](disaster-recovery-demo.md). Demonstrates an encrypted
 backup set, checksum-before-decrypt verification, the tamper, wrong-key,
 incomplete and path-unsafe refusals against a real set, an isolated restore into
@@ -65,7 +65,7 @@ certification, and no guaranteed recovery-point or recovery-time objective.
 
 ## SABCL traffic comparison
 
-Implemented in Prompt 09. See [sabcl-routing-demo.md](sabcl-routing-demo.md).
+See [sabcl-routing-demo.md](sabcl-routing-demo.md).
 Demonstrates strict-mode startup validation, the operator status page, a real
 encrypted account read through the blind router, the privacy-safe audit trail,
 the metadata leakage scan against seeded sensitive values, tampering and replay

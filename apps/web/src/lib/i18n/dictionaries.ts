@@ -91,7 +91,6 @@ const en = {
   sessionProtected: 'Protected and active',
   sessionExpires: 'Session expires',
   accountsCard: 'Accounts and balances',
-  prompt05: 'Coming in Prompt 05',
   noAccountYet: 'No account created yet',
   tierZeroExplainer:
     'A Tier-0 wallet is a basic prototype account. It holds a balance in Sri Lanka rupees and requires no documents to open.',
@@ -105,7 +104,6 @@ const en = {
   accountCurrency: 'Currency',
   accountBalance: 'Current balance',
   tierZeroWallet: 'Tier-0 wallet',
-  historyInPrompt06: 'Transaction history comes in Prompt 06.',
   requestConflict:
     'That request is already being processed. Please wait a moment and try again.',
   transfersCard: 'Transfers',
@@ -184,7 +182,6 @@ const en = {
   transactionUnavailable: 'Transaction unavailable',
   transactionNotFound: 'Transaction not found',
   historyUnavailable: 'History unavailable',
-  transfersPrompt07: 'Transfers coming in Prompt 07',
   transactionDisclaimer:
     'This is a synthetic prototype record, not proof of payment or a financial instrument.',
   sabclTitle: 'SABCL metadata protection',
@@ -307,7 +304,6 @@ const si: Dictionary = {
   sessionProtected: 'ආරක්ෂිත සහ සක්‍රිය',
   sessionExpires: 'සැසිය අවසන් වන වේලාව',
   accountsCard: 'ගිණුම් සහ ශේෂ',
-  prompt05: 'Prompt 05 හි පැමිණේ',
   noAccountYet: 'තවම ගිණුමක් සාදා නැත',
   tierZeroExplainer:
     'මට්ටම 0 පසුම්බිය මූලික මූලාකෘති ගිණුමකි. එය ශ්‍රී ලංකා රුපියල්වලින් ශේෂයක් තබා ගන්නා අතර විවෘත කිරීමට ලේඛන අවශ්‍ය නොවේ.',
@@ -321,7 +317,6 @@ const si: Dictionary = {
   accountCurrency: 'මුදල් ඒකකය',
   accountBalance: 'වත්මන් ශේෂය',
   tierZeroWallet: 'මට්ටම 0 පසුම්බිය',
-  historyInPrompt06: 'ගනුදෙනු ඉතිහාසය Prompt 06 හි පැමිණේ.',
   requestConflict:
     'එම ඉල්ලීම දැනටමත් සකසමින් පවතී. මොහොතක් රැඳී සිට නැවත උත්සාහ කරන්න.',
   transfersCard: 'හුවමාරු',
@@ -395,7 +390,6 @@ const si: Dictionary = {
   transactionUnavailable: 'ගනුදෙනුව නොමැත',
   transactionNotFound: 'ගනුදෙනුව සොයාගත නොහැක',
   historyUnavailable: 'ඉතිහාසය නොමැත',
-  transfersPrompt07: 'හුවමාරු Prompt 07 හි පැමිණේ',
   transactionDisclaimer:
     'මෙය කෘතිම මූලාකෘති වාර්තාවක් පමණි; ගෙවීමේ සාක්ෂියක් හෝ මූල්‍ය උපකරණයක් නොවේ.',
   sabclTitle: 'SABCL පාරදත්ත ආරක්ෂණය',
@@ -522,7 +516,6 @@ const ta: Dictionary = {
   sessionProtected: 'பாதுகாக்கப்பட்டு செயலில் உள்ளது',
   sessionExpires: 'அமர்வு முடியும் நேரம்',
   accountsCard: 'கணக்குகள் மற்றும் இருப்புகள்',
-  prompt05: 'Prompt 05-இல் வரும்',
   noAccountYet: 'இதுவரை கணக்கு உருவாக்கப்படவில்லை',
   tierZeroExplainer:
     'நிலை 0 பணப்பை ஒரு அடிப்படை முன்மாதிரி கணக்கு. இது இலங்கை ரூபாயில் இருப்பை வைத்திருக்கும்; திறக்க ஆவணங்கள் தேவையில்லை.',
@@ -536,7 +529,6 @@ const ta: Dictionary = {
   accountCurrency: 'நாணயம்',
   accountBalance: 'தற்போதைய இருப்பு',
   tierZeroWallet: 'நிலை 0 பணப்பை',
-  historyInPrompt06: 'பரிவர்த்தனை வரலாறு Prompt 06-இல் வரும்.',
   requestConflict:
     'அந்தக் கோரிக்கை ஏற்கெனவே செயலாக்கப்படுகிறது. சிறிது நேரம் காத்திருந்து மீண்டும் முயலவும்.',
   transfersCard: 'பரிமாற்றங்கள்',
@@ -615,7 +607,6 @@ const ta: Dictionary = {
   transactionUnavailable: 'பரிவர்த்தனை கிடைக்கவில்லை',
   transactionNotFound: 'பரிவர்த்தனை காணப்படவில்லை',
   historyUnavailable: 'வரலாறு கிடைக்கவில்லை',
-  transfersPrompt07: 'பரிமாற்றங்கள் Prompt 07-இல் வரும்',
   transactionDisclaimer:
     'இது செயற்கை முன்மாதிரி பதிவு மட்டுமே; கட்டணச் சான்றோ நிதிக் கருவியோ அல்ல.',
   sabclTitle: 'SABCL மேனிலைத் தரவுப் பாதுகாப்பு',

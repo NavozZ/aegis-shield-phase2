@@ -6,7 +6,7 @@
 
 ## Context
 
-Prompt 03 established phone onboarding, OTP and PIN verification, WebAuthn boundaries, opaque sessions, and CSRF enforcement behind the API Gateway. Prompt 04 needs a usable customer journey without moving authentication policy or secrets into the Next.js application. The experience must support English, Sinhala, and Tamil, keyboard and assistive-technology users, small screens, unavailable dependencies, and browsers without passkey support.
+The Identity service established phone onboarding, OTP and PIN verification, WebAuthn boundaries, opaque sessions, and CSRF enforcement behind the API Gateway. The customer experience needs a usable journey without moving authentication policy or secrets into the Next.js application. The experience must support English, Sinhala, and Tamil, keyboard and assistive-technology users, small screens, unavailable dependencies, and browsers without passkey support.
 
 ## Decision
 
